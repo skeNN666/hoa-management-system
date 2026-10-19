@@ -47,6 +47,15 @@ js/
 vendor/three.min.js
 ```
 
+## Кодын стандарт
+
+CSS, JS, HTML файлууд [Prettier](https://prettier.io)-оор форматлагдсан (тохиргоо: `.prettierrc.json`, `.editorconfig`).
+`vendor/` фолдерыг форматлахгүй. Код өөрчилсний дараа дараах командыг ажиллуулна:
+
+```
+npx prettier@3.3.3 --write "css/*.css" "js/**/*.js" "*.html"
+```
+
 ## Nar framework товч
 
 ```js
