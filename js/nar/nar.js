@@ -105,7 +105,7 @@
   function host(k) { if (!hosts[k]) { hosts[k] = document.createElement('div'); hosts[k].className = 'keep-host'; } return hosts[k]; }
   /** Nar.keep('map3d','cls') → placeholder; morph-ийн дараа host-ыг автоматаар дотор нь хийнэ */
   const keep = (k, cls = '') => raw('<div data-keep="' + esc(k) + '" class="' + esc(cls) + '"></div>');
-  function attachKeeps(root) { root.querySelectorAll('[data-keep]').forEach((ph) => { const h = host(ph.getAttribute('data-keep')); if (h.parentNode !== ph) ph.appendChild(h); }); }
+  function attachKeeps(root) { root.querySelectorAll('[data-keep]').forEach((ph) => { const h = host(ph.getAttribute('data-keep')); Array.from(ph.children).forEach((c) => { if (c !== h && c.classList.contains('keep-host')) c.remove(); }); if (h.parentNode !== ph) ph.appendChild(h); }); } // өмнөх host-ыг салгана (жишээ нь зогсоолын бүс солиход)
   Object.assign(Nar, { host, keep });
 
   /* ---------- router ---------- */

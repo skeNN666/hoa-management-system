@@ -136,9 +136,11 @@
         const f = st.slots.find((x) => x.zone === 'p' && x.st === 1 && !x.mine);
         if (f) { Object.assign(f, { st: 0, plate: '' }); st.park = { stage: 'found', slot: f.id, hold: 60, pos: 1 }; S.notify('resident', 'ok', f.id + ' сул боллоо!', 'Дараалалд 1-рт байсан тул танд санал болгож байна'); T.push('park', 'slots', 'notifs'); }
       }
-      if (sec % 11 === 0) {
-        const outs = st.slots.filter((x) => x.zone === 'p' && !x.mine && x.sens !== 'off'); const c = outs[(sec * 7) % outs.length];
-        if (c.st === 0) Object.assign(c, { st: 2, plate: '7' + (100 + (sec % 900)) + ' УБЕ' }); else Object.assign(c, { st: 0, plate: '' });
+      if (sec % 4 === 0) { // demo: гадна зогсоол, гаражид ээлжлэн машин орж ирнэ / гарч явна
+        const zone = sec % 8 === 0 ? 'p' : 'g';
+        const outs = st.slots.filter((x) => x.zone === zone && !x.mine && x.st !== 3 && x.sens !== 'off'); const c = outs[(sec * 7) % outs.length];
+        if (c.st === 0) Object.assign(c, { st: sec % 3 === 0 ? 2 : 1, plate: (1000 + (sec * 37) % 8999) + ' УБ' + 'АБВГДЕ'[sec % 6], color: D.CAR_COLORS[sec % D.CAR_COLORS.length] });
+        else Object.assign(c, { st: 0, plate: '' });
         T.push('slots');
       }
       emit(T);

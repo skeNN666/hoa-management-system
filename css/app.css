@@ -186,6 +186,11 @@
 .free-box { width: 64px; height: 64px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
 .free-box.ok { background: var(--ok-soft); color: var(--ok); } .free-box.bad { background: var(--bad-soft); color: var(--bad); }
 .mini-lot { display: grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 3px; } .mini-lot i { height: 12px; border-radius: 3px; } .mini-lot i.occ { background: color-mix(in srgb, var(--bad-solid) 55%, transparent); }
+.mini-lot i { position: relative; overflow: hidden; transition: background-color .6s; }
+.mini-lot i::after { content: ''; position: absolute; left: 24%; right: 24%; top: 1px; bottom: 1px; border-radius: 2px; background: rgba(255,255,255,.9); box-shadow: inset 0 3px rgba(0,0,0,.18); transform: translateY(140%); transition: transform .8s cubic-bezier(.3,.7,.3,1); }
+.mini-lot i:nth-child(n+13):nth-child(-n+24)::after, .mini-lot i:nth-child(n+37)::after { transform: translateY(-140%); } /* 2, 4-р эгнээ дээрээс орно */
+.mini-lot i:not(.okbg)::after { transform: none; }
+@media (prefers-reduced-motion: reduce) { .mini-lot i, .mini-lot i::after { transition: none; } }
 .room { position: relative; height: 80px; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; padding: 8px; font-size: 11px; font-weight: 800; color: var(--muted); background: var(--surface2); }
 .room.wet { background: var(--accent-soft); } .room.wet-a { background: var(--bad-soft); }
 .room-water { position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: rgba(79,176,245,.5); }
