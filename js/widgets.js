@@ -80,11 +80,40 @@
   }
 
   function skyline() {
-    const B = [[0, 260], [70, 330], [150, 230], [230, 380], [320, 300], [400, 250], [470, 350], [560, 200], [630, 310], [720, 260]];
-    return Nar.raw('<svg class="skyline" viewBox="0 0 800 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><circle cx="640" cy="120" r="30" fill="#FFF4C8" opacity=".9"/><circle cx="640" cy="120" r="80" fill="#FFF4C8" opacity=".08"/>' +
-      B.map(([x, h], i) => { let w = '<rect x="' + x + '" y="' + (560 - h) + '" width="62" height="' + h + '" fill="' + (i % 2 ? '#16243A' : '#1A2B44') + '"/>';
-        for (let r = 0; r < Math.floor(h / 22); r++) for (let c = 0; c < 3; c++) w += '<rect x="' + (x + 8 + c * 18) + '" y="' + (560 - h + 12 + r * 22) + '" width="9" height="10" rx="1.5" fill="#F6C445" opacity="' + ((r * 7 + c * 3 + i) % 5 === 0 ? 0.12 : 0.85) + '">' + ((r + c + i) % 7 === 0 ? '<animate attributeName="opacity" values=".85;.1;.85" dur="' + (4 + (i % 5)) + 's" repeatCount="indefinite"/>' : '') + '</rect>';
-        return w; }).join('') + '</svg>');
+    const GROUND = 500;
+    // Жижиг барилгууд — тогтмол (deterministic) өндөр, өргөн
+    const B = []; for (let x = 0, i = 0; x < 800; i++) { const w = 34 + ((i * 37) % 4) * 6; const h = 80 + ((i * 53 + 17) % 9) * 17; B.push([x, w, h]); x += w + 4 + (i % 3) * 3; }
+    let s = '<svg class="skyline" viewBox="0 0 800 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><circle cx="640" cy="150" r="24" fill="#FFF4C8" opacity=".9"/><circle cx="640" cy="150" r="66" fill="#FFF4C8" opacity=".08"/>';
+    B.forEach(([x, w, h], i) => {
+      const top = GROUND - h;
+      s += '<rect x="' + x + '" y="' + top + '" width="' + w + '" height="' + h + '" fill="' + (i % 2 ? '#16243A' : '#1A2B44') + '"/>';
+      const cols = Math.floor((w - 6) / 10), rows = Math.floor((h - 10) / 13), ox = x + (w - cols * 10 + 4) / 2;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const k = (r * 7 + c * 13 + i * 5) % 11, on = k > 2, a = on ? 0.88 : 0.1, b = on ? 0.1 : 0.88;
+        let win = '<rect x="' + (ox + c * 10) + '" y="' + (top + 8 + r * 13) + '" width="6" height="7" rx="1" fill="#F6C445" opacity="' + a + '">';
+        // ~40% цонх асч/унтарна (discrete — гэнэт асах, унтрах)
+        if ((r * 3 + c * 5 + i) % 5 < 2) { const dur = 5 + ((r + c * 2 + i) % 9), beg = -((r * 11 + c * 7 + i * 3) % dur), t = (0.3 + ((r + c + i) % 5) * 0.1).toFixed(2);
+          win += '<animate attributeName="opacity" values="' + a + ';' + b + ';' + a + '" keyTimes="0;' + t + ';' + Math.min(0.95, +t + 0.25).toFixed(2) + '" calcMode="discrete" dur="' + dur + 's" begin="' + beg + 's" repeatCount="indefinite"/>'; }
+        s += win + '</rect>';
+      }
+    });
+    // Зам, явган хүний зам, гудамжны гэрэл
+    s += '<rect x="0" y="' + GROUND + '" width="800" height="4" fill="#22344F"/><rect x="0" y="504" width="800" height="56" fill="#0E1A2B"/>' +
+      '<line x1="0" y1="526" x2="800" y2="526" stroke="#F6C445" stroke-width="1.5" stroke-dasharray="14 12" opacity=".55"/>';
+    for (let x = 40; x < 800; x += 150) s += '<rect x="' + x + '" y="' + (GROUND - 30) + '" width="2" height="30" fill="#2A3D58"/><rect x="' + (x - 4) + '" y="' + (GROUND - 32) + '" width="10" height="3" rx="1.5" fill="#2A3D58"/><circle cx="' + (x + 4) + '" cy="' + (GROUND - 28) + '" r="2" fill="#FFE9A8"/><ellipse cx="' + (x + 4) + '" cy="' + (GROUND + 2) + '" rx="22" ry="5" fill="#FFE9A8" opacity=".08"/>';
+    // Машинууд: дээд эгнээ баруун тийш, доод эгнээ зүүн тийш
+    const car = (dir, y, color, dur, beg) => {
+      const body = '<path d="M30 -5 L60 -10 L60 1 Z" fill="#FFE9A8" opacity=".09"/>' +
+        '<path d="M6 -8 L10 -13 H20 L25 -8 Z" fill="' + color + '"/><rect x="0" y="-8.5" width="31" height="7" rx="2.5" fill="' + color + '"/>' +
+        '<rect x="11" y="-12" width="4.5" height="3.5" fill="#9FC3E8" opacity=".6"/><rect x="16.5" y="-12" width="4.5" height="3.5" fill="#9FC3E8" opacity=".6"/>' +
+        '<rect x="29" y="-7" width="2.5" height="2" fill="#FFF4C8"/><rect x="-0.5" y="-7" width="2" height="2" fill="#FF4D4D"/>' +
+        '<circle cx="7" cy="-1.5" r="2.4" fill="#05090F"/><circle cx="24" cy="-1.5" r="2.4" fill="#05090F"/>';
+      const from = dir > 0 ? '-80 ' + y : '880 ' + y, to = dir > 0 ? '880 ' + y : '-80 ' + y;
+      return '<g><animateTransform attributeName="transform" type="translate" from="' + from + '" to="' + to + '" dur="' + dur + 's" begin="' + beg + 's" repeatCount="indefinite"/>' + (dir > 0 ? body : '<g transform="scale(-1 1)">' + body + '</g>') + '</g>';
+    };
+    s += car(1, 520, '#E2574C', 9, 0) + car(1, 520, '#3D8FD6', 9, -3) + car(1, 520, '#F2F2F2', 9, -6.5) +
+      car(-1, 540, '#F6C445', 7.5, -1) + car(-1, 540, '#2EAE68', 7.5, -4) + car(-1, 540, '#8A6CD8', 11, -7);
+    return Nar.raw(s + '</svg>');
   }
 
   /** Тойрог прогресс (ажилтны өнөөдрийн гүйцэтгэл) */
