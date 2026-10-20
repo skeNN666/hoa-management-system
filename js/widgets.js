@@ -434,5 +434,71 @@
     );
   }
 
-  window.W = { kindOf, workerScene, leakBuilding, flower, avatar, skyline, ring };
+  /**
+   * Хотхоны сангийн сав — зоосоор дүүрэх хэмжээ = сангийн хүрэлцээ (0..1).
+   * Төлөөгүй бол дээрээс зоос унаж "та ч нэмээрэй" гэж урина, төлсөн бол зүрх гарна.
+   */
+  let jarN = 0;
+  function fundJar(cover, paid, size = 120) {
+    const id = 'jar' + ++jarN;
+    const top = 40,
+      bottom = 146,
+      h = bottom - top;
+    const lvl = bottom - h * Math.max(0.04, Math.min(1, cover));
+    const col = cover >= 1 ? '#2EAE68' : cover >= 0.8 ? '#F0B03E' : '#E0525A';
+    const coins = [];
+    for (let y = bottom - 8, r = 0; y > lvl + 6; y -= 9, r++)
+      for (let x = 30 + (r % 2) * 9; x < 92; x += 18)
+        coins.push(
+          '<ellipse cx="' +
+            x +
+            '" cy="' +
+            y +
+            '" rx="8" ry="3.2" fill="#F6C445" stroke="#C8941A" stroke-width="1"/>',
+        );
+    return Nar.raw(
+      '<svg class="jar" width="' +
+        size +
+        '" height="' +
+        size * 1.3 +
+        '" viewBox="0 0 120 156" aria-hidden="true">' +
+        '<defs><clipPath id="' +
+        id +
+        '"><path d="M24 44h72v92a12 12 0 0 1-12 12H36a12 12 0 0 1-12-12z"/></clipPath></defs>' +
+        '<ellipse cx="60" cy="150" rx="40" ry="5" fill="#000" opacity=".12"/>' +
+        '<g clip-path="url(#' +
+        id +
+        ')">' +
+        '<rect x="20" y="40" width="80" height="112" fill="var(--surface2, #EEF2F6)"/>' +
+        '<rect x="20" y="' +
+        lvl +
+        '" width="80" height="' +
+        (bottom + 10 - lvl) +
+        '" fill="#FBD873"/>' +
+        coins.join('') +
+        '<path class="jar-wave" d="M0 ' +
+        lvl +
+        ' q10 -5 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 v8 h-140z" fill="#FFE7A3" opacity=".9"/>' +
+        '</g>' +
+        // хэрэгцээт түвшин (100%)
+        '<line x1="20" y1="' +
+        top +
+        '" x2="100" y2="' +
+        top +
+        '" stroke="' +
+        col +
+        '" stroke-width="2" stroke-dasharray="4 3"/>' +
+        '<path d="M24 44h72v92a12 12 0 0 1-12 12H36a12 12 0 0 1-12-12z" fill="none" stroke="#9FB3C8" stroke-width="3"/>' +
+        '<rect x="30" y="30" width="60" height="12" rx="4" fill="#9FB3C8"/>' +
+        '<path d="M32 60v60" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".45"/>' +
+        (paid
+          ? '<g class="jar-heart"><path d="M60 22c-6-9-20-5-17 5 2 6 17 15 17 15s15-9 17-15c3-10-11-14-17-5z" fill="#E0525A"/></g>' +
+            '<circle class="jar-spark" cx="98" cy="24" r="3" fill="#F6C445"/><circle class="jar-spark s2" cx="22" cy="30" r="2.5" fill="#F6C445"/>'
+          : '<g class="jar-coin"><circle cx="60" cy="0" r="9" fill="#F6C445" stroke="#C8941A" stroke-width="1.6"/>' +
+            '<text x="60" y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#8A5A00">₮</text></g>') +
+        '</svg>',
+    );
+  }
+
+  window.W = { kindOf, workerScene, leakBuilding, flower, avatar, skyline, ring, fundJar };
 })();

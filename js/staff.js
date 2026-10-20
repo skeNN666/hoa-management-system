@@ -243,7 +243,9 @@
                   <div class="center">
                     <span class="cele-ic bob">${ic('party', 36)}</span
                     ><b class="block t20 mt1">Ажил шийдэгдлээ!</b>
-                    <p class="muted t14">Оршин суугчид зурагтай мэдэгдэл очлоо</p>
+                    <p class="muted t14">
+                      Удирдлага, оршин суугчдад мэдэгдэл шууд очиж, сарын тайланд бүртгэгдлээ
+                    </p>
                   </div>
                 </div>`
               : ''}

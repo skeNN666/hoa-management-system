@@ -143,6 +143,7 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     renderer.physicallyCorrectLights = true;
     renderer.domElement.className = 'stage3d-canvas';
     host.appendChild(renderer.domElement);
@@ -213,7 +214,7 @@
       while (g.children.length) {
         const c = g.children.pop();
         c.traverse((x) => {
-          if (x.geometry) x.geometry.dispose();
+          if (x.geometry && !x.geometry.userData.keep) x.geometry.dispose();
           if (x.userData.lbl) labels.remove(x.userData.lbl);
         });
       }
@@ -230,29 +231,235 @@
     return api;
   }
 
+  /* ---------- орчин үеийн загварууд: машин, хүн, тэнгэр ---------- */
+  // олон машин нэг геометрийг хуваалцана (keep → clear() үед устгахгүй)
+  const keepGeo = (g) => ((g.userData.keep = true), g);
+  const GEO = {};
+  const matCache = new Map();
+  const cmat = (key, make) => {
+    if (!matCache.has(key)) matCache.set(key, make());
+    return matCache.get(key);
+  };
+  function carGeo() {
+    if (GEO.body) return GEO;
+    // хажуугаас харсан их бие (урд талдаа намхан, ард өндөр) → өргөн рүү extrude
+    const s = new THREE.Shape();
+    s.moveTo(-1.38, 0.26);
+    s.lineTo(1.38, 0.26);
+    s.quadraticCurveTo(1.46, 0.27, 1.45, 0.42);
+    s.lineTo(1.42, 0.6);
+    s.quadraticCurveTo(1.38, 0.7, 1.15, 0.72);
+    s.lineTo(-1.2, 0.76);
+    s.quadraticCurveTo(-1.42, 0.75, -1.43, 0.58);
+    s.lineTo(-1.43, 0.4);
+    s.quadraticCurveTo(-1.43, 0.27, -1.38, 0.26);
+    const ext = {
+      depth: 1.26,
+      bevelEnabled: true,
+      bevelThickness: 0.08,
+      bevelSize: 0.07,
+      bevelSegments: 3,
+      curveSegments: 6,
+    };
+    GEO.body = keepGeo(new THREE.ExtrudeGeometry(s, ext).translate(0, 0, -0.63));
+    const c = new THREE.Shape();
+    c.moveTo(-0.98, 0.72);
+    c.lineTo(0.72, 0.72);
+    c.quadraticCurveTo(0.42, 1.12, 0.22, 1.16);
+    c.lineTo(-0.72, 1.17);
+    c.quadraticCurveTo(-0.9, 1.15, -0.98, 0.72);
+    GEO.cabin = keepGeo(
+      new THREE.ExtrudeGeometry(c, {
+        depth: 1.12,
+        bevelEnabled: true,
+        bevelThickness: 0.04,
+        bevelSize: 0.04,
+        bevelSegments: 2,
+      }).translate(0, 0, -0.56),
+    );
+    GEO.roof = keepGeo(new THREE.BoxGeometry(0.98, 0.07, 1.14));
+    GEO.wheel = keepGeo(new THREE.CylinderGeometry(0.29, 0.29, 0.22, 18).rotateX(Math.PI / 2));
+    GEO.rim = keepGeo(new THREE.CylinderGeometry(0.16, 0.16, 0.24, 12).rotateX(Math.PI / 2));
+    GEO.lamp = keepGeo(new THREE.BoxGeometry(0.05, 0.12, 0.34));
+    GEO.shadow = keepGeo(new THREE.PlaneGeometry(3.1, 1.75).rotateX(-Math.PI / 2));
+    return GEO;
+  }
+  let blobTex = null;
+  function blob() {
+    if (blobTex) return blobTex;
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const r = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+    r.addColorStop(0, 'rgba(0,0,0,.55)');
+    r.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = r;
+    g.fillRect(0, 0, 64, 64);
+    return (blobTex = new THREE.CanvasTexture(c));
+  }
+
+  /** Орчин үеийн жижиг машин: гөлгөр их бие, шилэн кабин, дугуй, урд/хойд гэрэл. Урагшаа +x. */
   function carBody(color, scale = 1) {
+    const G = carGeo();
     const g = new THREE.Group();
     g.scale.setScalar(scale);
-    const b = box(2.8, 0.7, 1.5, mat(color, { roughness: 0.5 }));
-    b.position.y = 0.45;
-    b.castShadow = true;
-    g.add(b);
-    const t = box(1.5, 0.55, 1.35, mat('#2E3440', { roughness: 0.3 }));
-    t.position.set(-0.1, 1.05, 0);
-    t.castShadow = true;
-    g.add(t);
-    [0.45, -0.45].forEach((z) => {
-      const h = box(
-        0.04,
-        0.18,
-        0.3,
-        mat('#FFE38A', { emissive: '#FFE38A', emissiveIntensity: 1.2 }),
-      );
-      h.position.set(1.41, 0.5, z);
-      g.add(h);
+    const paint = cmat('p' + color, () => mat(color, { roughness: 0.35, metalness: 0.12 }));
+    const body = new THREE.Mesh(G.body, paint);
+    body.castShadow = true;
+    const glass = cmat('glass', () => mat('#2A3A4C', { roughness: 0.12, metalness: 0.2 }));
+    const cab = new THREE.Mesh(G.cabin, glass);
+    cab.castShadow = true;
+    const roof = new THREE.Mesh(G.roof, paint);
+    roof.position.set(-0.28, 1.25, 0);
+    g.add(body, cab, roof);
+    const tire = cmat('tire', () => mat('#15171B', { roughness: 0.9 }));
+    const rim = cmat('rim', () => mat('#B8C0CC', { roughness: 0.3, metalness: 0.8 }));
+    [0.86, -0.86].forEach((x) =>
+      [0.62, -0.62].forEach((z) => {
+        const w = new THREE.Mesh(G.wheel, tire);
+        w.position.set(x, 0.29, z);
+        const r = new THREE.Mesh(G.rim, rim);
+        r.position.set(x, 0.29, z);
+        g.add(w, r);
+      }),
+    );
+    const head = cmat('head', () =>
+      mat('#FFF6D8', { emissive: '#FFF0C0', emissiveIntensity: 1.6 }),
+    );
+    const tail = cmat('tail', () =>
+      mat('#E0303A', { emissive: '#FF2A36', emissiveIntensity: 1.2 }),
+    );
+    [0.42, -0.42].forEach((z) => {
+      const h = new THREE.Mesh(G.lamp, head);
+      h.position.set(1.5, 0.55, z);
+      const tl = new THREE.Mesh(G.lamp, tail);
+      tl.position.set(-1.5, 0.6, z);
+      g.add(h, tl);
     });
+    // зөөлөн газрын сүүдэр (бодит сүүдрийн доор жаахан гүн өгнө)
+    const sh = new THREE.Mesh(
+      G.shadow,
+      cmat(
+        'blob',
+        () => new THREE.MeshBasicMaterial({ map: blob(), transparent: true, depthWrite: false }),
+      ),
+    );
+    sh.position.y = 0.015;
+    g.add(sh);
     return g;
   }
 
-  window.Nar3D = { OrbitCam, Labels, stage, mat, box, carBody };
+  /**
+   * Бага полигонтой хүн (хөтөч). Урагшаа +x. walk(p, t, moving, point) — алхах / заах хөдөлгөөн.
+   */
+  function person(o = {}) {
+    const { shirt = '#F28C28', pants = '#2F3B52', skin = '#F2C7A5', hat = '#F5D130' } = o;
+    const g = new THREE.Group();
+    const M = (c) => mat(c, { roughness: 0.75 });
+    const limb = (w, h, d, m) => {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      geo.translate(0, -h / 2, 0);
+      const me = new THREE.Mesh(geo, m);
+      me.castShadow = true;
+      return me;
+    };
+    const pm = M(pants),
+      sm = M(shirt),
+      km = M(skin);
+    const legL = limb(0.2, 0.86, 0.22, pm),
+      legR = limb(0.2, 0.86, 0.22, pm);
+    legL.position.set(0, 0.88, 0.13);
+    legR.position.set(0, 0.88, -0.13);
+    const torso = box(0.32, 0.64, 0.5, sm);
+    torso.position.y = 1.2;
+    torso.castShadow = true;
+    const band = box(
+      0.33,
+      0.07,
+      0.51,
+      mat('#EEF3F7', { emissive: '#ffffff', emissiveIntensity: 0.25 }),
+    );
+    band.position.y = 1.08;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), km);
+    head.position.y = 1.72;
+    head.castShadow = true;
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.205, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      M(hat),
+    );
+    cap.position.y = 1.76;
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.03, 16), M(hat));
+    brim.position.set(0.04, 1.77, 0);
+    const armL = limb(0.14, 0.6, 0.14, sm),
+      armR = limb(0.14, 0.6, 0.14, sm);
+    armL.position.set(0, 1.5, 0.33);
+    armR.position.set(0, 1.5, -0.33);
+    const handL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), km);
+    handL.position.y = -0.62;
+    armL.add(handL);
+    const handR = handL.clone();
+    armR.add(handR);
+    g.add(legL, legR, torso, band, head, cap, brim, armL, armR);
+    g.userData.rig = { legL, legR, armL, armR, body: [torso, band, head, cap, brim] };
+    return g;
+  }
+  function walk(p, t, moving, point) {
+    const r = p.userData.rig;
+    const s = moving ? Math.sin(t * 9) * 0.65 : 0;
+    r.legL.rotation.z = s;
+    r.legR.rotation.z = -s;
+    r.armL.rotation.z = -s * 0.8;
+    // заахдаа баруун гараа урагш, дээш өргөнө
+    const goal = point ? 2.3 + Math.sin(t * 4) * 0.12 : s * 0.8;
+    r.armR.rotation.z += (goal - r.armR.rotation.z) * 0.18;
+    const bob = moving ? Math.abs(Math.sin(t * 9)) * 0.06 : Math.sin(t * 2) * 0.015;
+    r.body.forEach((m, i) => (m.position.y = [1.2, 1.08, 1.72, 1.76, 1.77][i] + bob));
+    r.armL.position.y = r.armR.position.y = 1.5 + bob;
+  }
+
+  /** Босоо gradient (тэнгэр) — scene.background-д */
+  function skyTexture(stops) {
+    const c = document.createElement('canvas');
+    c.width = 2;
+    c.height = 256;
+    const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, 256);
+    stops.forEach(([k, col]) => gr.addColorStop(k, col));
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 2, 256);
+    const tx = new THREE.CanvasTexture(c);
+    tx.encoding = THREE.sRGBEncoding;
+    return tx;
+  }
+  /** Асфальт, зүлэгний жижиг ширхэгтэй бүтэц */
+  function grainTexture(base, amount = 18, repeat = 8) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = base;
+    g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 1400; i++) {
+      const v = (Math.random() - 0.5) * amount;
+      g.fillStyle = v > 0 ? 'rgba(255,255,255,' + v / 100 + ')' : 'rgba(0,0,0,' + -v / 100 + ')';
+      g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+    }
+    const tx = new THREE.CanvasTexture(c);
+    tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+    tx.repeat.set(repeat, repeat);
+    tx.encoding = THREE.sRGBEncoding;
+    return tx;
+  }
+
+  window.Nar3D = {
+    OrbitCam,
+    Labels,
+    stage,
+    mat,
+    box,
+    carBody,
+    person,
+    walk,
+    skyTexture,
+    grainTexture,
+  };
 })();

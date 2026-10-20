@@ -4,7 +4,7 @@
   const { ic, seg } = Shell;
   const { ME, REQ_STATUS } = D;
   const ROOMS = ['Угаалгын өрөө', 'Гал тогоо', 'Бойлер'];
-  const ui = { guide: 'hello', mini: true, gk: 0 };
+  const ui = { guide: 'hello', mini: true, gk: 0, repM: D.CUR_MONTH };
   const set = (p) => {
     Object.assign(ui, p);
     Shell.refresh(['ui']);
@@ -67,8 +67,11 @@
             : html`<p class="t13 semi muted">
                   Төлбөрөө төлөөгүй хугацаанд цэцэг тань аажмаар хатна
                 </p>
-                <button class="btn p lg" data-act="pay">Төлөх ${ic('arrow-right', 16)}</button>`}
+                <button class="btn p lg shine" data-act="pay">
+                  Төлөх ${ic('arrow-right', 16)}
+                </button>`}
         </section>
+        ${fundCard(s)}
         <div class="cols c1 md-c2">
           <a href="#/parking" class="card p4 col g3"
             ><div class="flex jb">
@@ -221,7 +224,7 @@
         ><b class="${cx('num t40', s.paid && 'okc')}">₮97,000</b>
         ${s.paid
           ? html`<span class="chip lg c-ok">${ic('ok', 15)}Төлөгдсөн · баярлалаа!</span>`
-          : html`<button class="btn p lg w100" data-act="pay">Одоо төлөх</button>`}
+          : html`<button class="btn p lg w100 shine" data-act="pay">Одоо төлөх</button>`}
         <div class="w100 col g2 t13 bt pt3" style="text-align:left">
           ${[
             ['СӨХ-ийн хураамж', 50000],
@@ -234,6 +237,17 @@
               html`<div class="flex jb"><span>${l}</span><b class="num">${D.money(v)}</b></div>`,
           )}
         </div>
+      </section>
+      <section class="card p5 col g3">
+        <div class="flex jb ic">
+          <h2 class="h2">Таны ₮97,000 юунд зарцуулагдах вэ</h2>
+          <a href="#/report" class="link t12">Тайлан →</a>
+        </div>
+        <p class="muted t12">Энэ сарын нийтлэгдсэн зарлагын бүтцээр тооцов (ойролцоогоор).</p>
+        ${Report.billShare(
+          ME.bill,
+          s.ledger.filter((x) => x.month === D.CUR_MONTH),
+        )}
       </section>
       <section class="card p5 col g1">
         <h2 class="h2 mb2">Төлбөрийн түүх</h2>
@@ -248,6 +262,104 @@
               </div>`,
           )}
         </div>
+      </section>
+    </div>`;
+  }
+
+  /* ------------------------------ Хотхоны сан · ил тод тайлан ------------------------------ */
+  // нүүр хуудсан дээрх сангийн сав — төлбөрөө төлөхийг урамшуулна
+  function fundCard(s) {
+    const f = S.fund();
+    const pct = Math.round(f.cover * 100);
+    return html`<section
+      class="${cx('card p4 flex ic g4 fund-home', !s.paid && f.short && 'nudge')}"
+    >
+      ${W.fundJar(f.cover, s.paid, 96)}
+      <div class="grow col g2">
+        <span class="th">Хотхоны сан · ${Report.mLabel(D.CUR_MONTH)}</span>
+        <b class="t18"
+          >${f.short ? 'Сан ' + Report.M(f.short) + ' дутуу байна' : 'Сан хүрэлцээтэй байна'}</b
+        >
+        <p class="muted t13">
+          ${s.paid
+            ? 'Таны ₮97,000 сан руу орсон. Хотхоноо хамтдаа авч явж байгаад баярлалаа!'
+            : 'Таны ₮97,000 лифтний засвар, өвлийн дулааны бэлтгэлд шууд зарцуулагдана. Зарлага бүр тайланд нийтлэгддэг.'}
+        </p>
+        <div class="flex ic g2">
+          <div class="bar grow">
+            <i
+              class="${pct >= 100 ? 'okbg' : pct >= 80 ? 'warnbg' : 'badbg'}"
+              style="${'width:' + pct + '%'}"
+            ></i>
+          </div>
+          <b class="num t12">${pct}%</b>
+        </div>
+        <div class="flex wrap g2">
+          ${s.paid
+            ? ''
+            : html`<button class="btn s p shine" data-act="pay">
+                ${ic('coins', 15)}Хувь нэмрээ оруулах
+              </button>`}
+          <a href="#/report" class="btn s">${ic('chart', 15)}Юунд зарцуулсныг харах</a>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function reportPage() {
+    const s = st();
+    const f = S.fund();
+    const m = ui.repM;
+    const L = s.ledger.filter((x) => x.month === m);
+    const Wk = s.works.filter((x) => x.month === m);
+    const pub = s.reportPub[m];
+    return html`<div class="col g4">
+      <section class="${cx('card pad flex wrap ic g4', !s.paid && f.short && 'nudge')}">
+        ${W.fundJar(f.cover, s.paid, 84)}
+        <div class="grow col g2" style="min-width:220px">
+          <h2 class="h2">СӨХ-ийн мөнгө юунд зарцуулагдаж байна вэ</h2>
+          <p class="muted t13">
+            СӨХ орлого, зарлага, хийсэн ажил бүрээ энд нийтэлдэг. Ажилтан ажлаа дуусгамагц танд
+            мэдэгдэл очиж, энд нэмэгдэнэ.
+          </p>
+          ${s.paid
+            ? html`<span class="chip c-ok self-start"
+                >${ic('ok', 13)}Та энэ сарын төлбөрөө төлсөн</span
+              >`
+            : html`<button class="btn p self-start shine" data-act="pay">
+                ${ic('coins', 16)}₮97,000 төлж сан руу нэмэх
+              </button>`}
+        </div>
+      </section>
+      ${Report.fundStats(f)}
+      <div class="flex wrap g2 jb ic">
+        ${seg(D.MONTHS, m, 'repM')}
+        ${pub
+          ? html`<span class="chip c-ok">${ic('ok', 13)}Тайлан нийтлэгдсэн · ${pub}</span>`
+          : html`<span class="chip c-acc">Сар дуусаагүй · шууд шинэчлэгдэж байна</span>`}
+      </div>
+      <div class="cols c1 xl-split2">
+        <section class="card pad col g3">
+          <div class="flex jb ic">
+            <h2 class="h2">Зарлага</h2>
+            <b class="num badc">−${D.money(Report.sum(L))}</b>
+          </div>
+          ${L.length ? Report.catBars(L) : ''} ${Report.ledgerRows(L)}
+        </section>
+        <section class="card pad col g3">
+          <div class="flex jb ic">
+            <h2 class="h2">Хийсэн ажил</h2>
+            <span class="chip c-acc num">${Wk.length} ажил</span>
+          </div>
+          ${Report.workRows(Wk)}
+        </section>
+      </div>
+      <section class="card pad col g3">
+        <div class="flex wrap jb ic g2">
+          <h2 class="h2">Төлбөрийн гүйцэтгэл · байраар</h2>
+          <span class="muted t12">★ — таны байр</span>
+        </div>
+        ${Report.bldRates(S.units, ME.b)}
       </section>
     </div>`;
   }
@@ -607,12 +719,14 @@
       return [
         { h: '', label: 'Нүүр', icon: 'home' },
         { h: 'pay', label: 'Төлбөр', icon: 'card', badge: s.paid ? 0 : 1 },
+        { h: 'report', label: 'Тайлан', icon: 'chart' },
         { h: 'parking', label: 'Зогсоол', icon: 'car' },
         {
           h: 'notifications',
           label: 'Мэдэгдэл',
           icon: 'bell',
           badge: s.notifs.resident.filter((n) => n.unread).length,
+          bn: false, // гар утсанд дээд мөрний хонхоор нээнэ
         },
         { h: 'profile', label: 'Профайл', icon: 'user' },
       ];
@@ -620,10 +734,15 @@
     routes: {
       '': {
         title: 'Сайн байна уу, Бат',
-        topics: ['pay', 'wilt', 'reqs', 'slots', 'park', 'leaks', 'notifs'],
+        topics: ['pay', 'wilt', 'reqs', 'slots', 'park', 'leaks', 'notifs', 'fund', 'ledger'],
         view: home,
       },
-      pay: { title: 'Төлбөр', topics: ['pay', 'wilt'], view: payPage },
+      pay: { title: 'Төлбөр', topics: ['pay', 'wilt', 'ledger'], view: payPage },
+      report: {
+        title: 'Ил тод тайлан',
+        topics: ['ledger', 'works', 'fund', 'pay', 'payments'],
+        view: reportPage,
+      },
       parking: { title: 'Зогсоол', topics: ['slots', 'park'], view: parkPage, after: parkAfter },
       profile: { title: 'Профайл', topics: ['reqs', 'theme'], view: profile },
     },
@@ -633,6 +752,7 @@
       pay: openPay,
       req: () => openReq(),
       go: (h) => Nar.router.go(h),
+      repM: (m) => set({ repM: m }),
       demoLeak: () => S.newLeak(ME.b, ME.n, ROOMS[0]),
       reserve: (id) => S.reserveSlot(id),
       parkNotify: () => S.parkNotify(),

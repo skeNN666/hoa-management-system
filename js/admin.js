@@ -17,6 +17,9 @@
     q: '',
     payTab: 'debt',
     sla: SLA_DEF,
+    repM: D.CUR_MONTH,
+    exp: { cat: 'Засвар', t: '', amt: '', v: '' },
+    wk: { cat: 'Засвар', t: '', where: '' },
   };
   const set = (p) => {
     Object.assign(ui, p);
@@ -415,7 +418,7 @@
         <div class="map-title">
           <b class="${cx('t24 b9', ui.night && 'night')}">Нарны хотхон</b>
           <p class="t12 b sm-up" style="color:#7A7365">
-            Чирж эргүүлнэ · scroll-оор томруулна · байр, гэрэл дээр дарна
+            Чирж эргүүлнэ · scroll-оор томруулна · байр дээр дарвал хөтөч тийш дагуулна
           </p>
         </div>
         <button class="map-night" data-act="night" aria-label="Өдөр / шөнө">
@@ -525,6 +528,7 @@
       lights: st().lights,
       leaks: st().leaks,
       units: S.units,
+      slots: st().slots, // зогсоолын хуудастай sync
       mode: ui.mode,
       night: ui.night,
       selB: ui.selB,
@@ -812,6 +816,167 @@
       </div>
     </div>`;
   }
+
+  /* ------------------------------ Ил тод тайлан ------------------------------ */
+  // СӨХ-ийн сан дутвал бүх хуудасны дээд талд байнга хөдөлж анхааруулна
+  function fundBanner() {
+    const f = S.fund();
+    if (!f.short) return '';
+    const pct = Math.round(f.cover * 100);
+    return html`<div class="fund-alert view-in" role="alert">
+      <span class="fa-ic">${ic('coins', 22)}</span>
+      <div class="grow col g1 fa-txt">
+        <b class="t14">СӨХ-ийн сан ${money(f.short)} дутуу байна</b>
+        <span class="t12 fa-sub"
+          >Энэ сард төлөх ${money(f.due)} зардлын ${pct}%-ийг л хангаж байна · ${nf(f.debtors)} айл
+          ${money(f.debt)} өртэй</span
+        >
+        <div class="fa-bar"><i style="${'width:' + pct + '%'}"></i></div>
+      </div>
+      <div class="flex g2 fa-btns">
+        <button class="btn s" data-act="remindAll">Сануулга илгээх</button
+        ><a href="#/report" class="btn s p">Тайлан</a>
+      </div>
+    </div>`;
+  }
+
+  function report() {
+    const s = st();
+    const f = S.fund();
+    const m = ui.repM;
+    const isCur = m === D.CUR_MONTH;
+    const L = s.ledger.filter((x) => x.month === m);
+    const Wk = s.works.filter((x) => x.month === m);
+    const pub = s.reportPub[m];
+    const opt = (list, cur) =>
+      list.map(
+        (c) => html`<option value="${c}" ${c === cur ? Nar.raw('selected') : ''}>${c}</option>`,
+      );
+    return html`<div class="col g4">
+      <div class="flex wrap g3 jb ic">
+        <div>
+          <h2 class="h2">СӨХ-ийн сан ба ил тод байдал</h2>
+          <p class="muted t12">
+            Энд оруулсан зарлага, хийсэн ажил бүх оршин суугчид тэр дороо харагдаж, мэдэгдэл очно.
+          </p>
+        </div>
+        <a href="#/payments" class="btn s">${ic('users', 15)}Хэн төлсөн бэ →</a>
+      </div>
+      ${Report.fundStats(f)}
+      <section class="card pad col g2">
+        <div class="flex jb ic mb1">
+          <h2 class="h2">Энэ сард төлөх зардал</h2>
+          <span class="muted t12 num">${money(f.due)} үлдсэн</span>
+        </div>
+        ${s.obligations.map(
+          (o) =>
+            html`<div class="trow flex ic g3 p2 t13" data-key="${o.id}">
+              <span class="${'chip icon s ' + (o.paid ? 'c-ok' : 'c-warn')}"
+                >${ic(o.paid ? 'ok' : 'clock', 15)}</span
+              >
+              <div class="grow">
+                <b class="block">${o.t}</b
+                ><span class="muted t12">${o.cat} · хугацаа ${o.due}</span>
+              </div>
+              <b class="num nowrap">${money(o.amt)}</b>
+              ${o.paid
+                ? html`<span class="chip c-ok">Төлсөн</span>`
+                : html`<button class="btn s" data-act="payOb" data-arg="${o.id}">Төлөх</button>`}
+            </div>`,
+        )}
+      </section>
+      <div class="flex wrap g2 jb ic">
+        ${seg(D.MONTHS, m, 'repM')}
+        <div class="flex wrap ic g2">
+          ${pub
+            ? html`<span class="chip c-ok">${ic('ok', 13)}Нийтлэгдсэн · ${pub}</span>`
+            : html`<span class="chip c-warn">Тайлан нийтлээгүй</span>`}
+          <button class="btn s p" data-act="pubReport">
+            ${ic('megaphone', 15)}${Report.mLabel(m)}ын тайланг нийтлэх
+          </button>
+        </div>
+      </div>
+      <div class="cols c1 xl-split2">
+        <section class="card pad col g3">
+          <div class="flex jb ic">
+            <h2 class="h2">Зарлага · юунд зарцуулав</h2>
+            <b class="num badc">−${money(Report.sum(L))}</b>
+          </div>
+          ${L.length ? Report.catBars(L) : ''}
+          ${isCur
+            ? html`<div class="add-box col g2">
+                <span class="th">Шинэ зарлага нийтлэх</span>
+                <div class="cols gs c1 sm-c2">
+                  <label class="field"
+                    >Ангилал<select class="inp" data-change="expCat">
+                      ${opt(D.EXP_CATS, ui.exp.cat)}
+                    </select></label
+                  ><label class="field"
+                    >Дүн (₮)<input
+                      class="inp num"
+                      inputmode="numeric"
+                      data-in="expAmt"
+                      placeholder="1,250,000"
+                  /></label>
+                </div>
+                <label class="field"
+                  >Юунд зарцуулсан<input
+                    class="inp"
+                    data-in="expT"
+                    placeholder="Жишээ: 3-р байрны орцны хаалга солив"
+                /></label>
+                <label class="field"
+                  >Хэнд төлсөн<input class="inp" data-in="expV" placeholder="Байгууллагын нэр"
+                /></label>
+                <button class="btn p self-start" data-act="addExp">${ic('plus', 15)}Нийтлэх</button>
+              </div>`
+            : ''}
+          ${Report.ledgerRows(L)}
+        </section>
+        <section class="card pad col g3">
+          <div class="flex jb ic">
+            <h2 class="h2">Хийсэн ажил</h2>
+            <span class="chip c-acc num">${Wk.length} ажил</span>
+          </div>
+          <p class="muted t12 flex ic g2">
+            ${ic('info', 14)}Ажилтан ажлаа "шийдэгдсэн" гэж батлахад энд автоматаар нэмэгдэнэ.
+          </p>
+          ${isCur
+            ? html`<div class="add-box col g2">
+                <span class="th">Хийсэн ажил нэмэх</span>
+                <div class="cols gs c1 sm-c2">
+                  <label class="field"
+                    >Төрөл<select class="inp" data-change="wkCat">
+                      ${opt(D.WORK_CATS, ui.wk.cat)}
+                    </select></label
+                  ><label class="field"
+                    >Хаана<input class="inp" data-in="wkWhere" placeholder="Жишээ: 3-р байр"
+                  /></label>
+                </div>
+                <label class="field"
+                  >Юу хийсэн<input
+                    class="inp"
+                    data-in="wkT"
+                    placeholder="Жишээ: Подвалын гэрэлтүүлгийг шинэчилсэн"
+                /></label>
+                <button class="btn p self-start" data-act="addWork">${ic('plus', 15)}Нэмэх</button>
+              </div>`
+            : ''}
+          ${Report.workRows(Wk)}
+        </section>
+      </div>
+      <section class="card pad col g3">
+        <div class="flex wrap jb ic g2">
+          <h2 class="h2">Төлбөрийн гүйцэтгэл · байраар</h2>
+          <span class="muted t12">Оршин суугчид айлын нэргүйгээр, зөвхөн байрны хувиар харна</span>
+        </div>
+        ${Report.bldRates(S.units)}
+      </section>
+    </div>`;
+  }
+  // маягтын талбаруудыг цэвэрлэнэ (input-ийн утгыг morph өөрчилдөггүй)
+  const clearInputs = (prefix) =>
+    document.querySelectorAll('[data-in^="' + prefix + '"]').forEach((el) => (el.value = ''));
 
   /* ------------------------------ Орон сууц ------------------------------ */
   const DOT = ['okbg', 'warnbg', 'badbg'];
@@ -1163,6 +1328,12 @@
             { h: 'finance', label: 'Орлого · Зарлага' },
           ],
         },
+        {
+          h: 'report',
+          label: 'Ил тод тайлан',
+          icon: 'chart',
+          badge: S.fund().short ? '!' : 0,
+        },
         { h: 'residents', label: 'Орон сууц', icon: 'building' },
         { h: 'parking', label: 'Зогсоол', icon: 'car' },
         {
@@ -1183,13 +1354,18 @@
       leak: { title: 'Ус алдалтын хяналт', topics: ['leaks'], view: leak },
       map: {
         title: 'Хотхоны 3D map',
-        topics: ['lights', 'leaks', 'pay', 'reqs'],
+        topics: ['lights', 'leaks', 'pay', 'reqs', 'slots'],
         view: mapView,
         after: mapAfter,
       },
       invoices: { title: 'Автомат нэхэмжлэл', topics: ['invoice'], view: invoices },
       payments: { title: 'Төлбөр ба өр', topics: ['payments', 'remind', 'pay'], view: payments },
       finance: { title: 'Орлого · Зарлага', view: finance },
+      report: {
+        title: 'Ил тод тайлан',
+        topics: ['ledger', 'works', 'fund', 'pay', 'payments'],
+        view: report,
+      },
       residents: { title: 'Байр ба оршин суугч', topics: ['pay'], view: residents },
       parking: { title: 'Зогсоол · 3D', topics: ['slots'], view: parking, after: parkAfter },
       requests: { title: 'Хүсэлт ба SLA', topics: ['reqs', 'tick'], view: requests },
@@ -1236,8 +1412,36 @@
         const [id, n] = a.split(':');
         S.takeRequest(id, n);
       },
+      repM: (m) => set({ repM: m }),
+      payOb: (id) => S.payObligation(id),
+      pubReport: () => S.publishReport(ui.repM),
+      addExp: () => {
+        const e = ui.exp;
+        const amt = Number(String(e.amt).replace(/[^\d]/g, ''));
+        if (!e.t.trim() || !amt)
+          return S.toast('Мэдээлэл дутуу', 'Юунд зарцуулсан, дүнгээ оруулна уу', 'warn');
+        S.addExpense({ cat: e.cat, t: e.t.trim(), amt, vendor: e.v.trim() });
+        Object.assign(e, { t: '', amt: '', v: '' });
+        clearInputs('exp');
+      },
+      addWork: () => {
+        const w = ui.wk;
+        if (!w.t.trim()) return S.toast('Мэдээлэл дутуу', 'Юу хийснээ бичнэ үү', 'warn');
+        S.addWork({ cat: w.cat, t: w.t.trim(), where: w.where.trim() });
+        Object.assign(w, { t: '', where: '' });
+        clearInputs('wk');
+      },
     },
+    banner: fundBanner,
+    bannerTopics: ['fund', 'pay', 'payments', 'ledger', 'remind'],
     inputs: {
+      expCat: (v) => (ui.exp.cat = v),
+      expAmt: (v) => (ui.exp.amt = v),
+      expT: (v) => (ui.exp.t = v),
+      expV: (v) => (ui.exp.v = v),
+      wkCat: (v) => (ui.wk.cat = v),
+      wkT: (v) => (ui.wk.t = v),
+      wkWhere: (v) => (ui.wk.where = v),
       resQ: (v) => set({ q: v }),
       inv: (v, el) => {
         const k = el.dataset.k;

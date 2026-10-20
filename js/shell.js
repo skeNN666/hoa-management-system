@@ -3,8 +3,10 @@
  *  ≥1024px: зүүн талын цэс (light/dark-д дагана, доор нь горим + гарах товч)
  *  <1024px: дээд мөр + гулсдаг цэс (удирдлага) эсвэл доод tab цэс (ажилтан, оршин суугч)
  *
- * Shell.boot({ role, brand, sub, mobile:'drawer'|'bottom', profile(), nav(), routes, actions, inputs, extra() })
+ * Shell.boot({ role, brand, sub, mobile:'drawer'|'bottom', profile(), nav(), routes, actions, inputs, extra(), banner() })
  *   routes: { '': { title, topics:['reqs'], view: () => html``, after(el) } , ... }
+ *   nav item: { h, label, icon, badge, kids, bn:false (доод цэсэнд харуулахгүй) }
+ *   banner: бүх хуудасны дээд талд байнга харагдах хэсэг (bannerTopics-оор шинэчлэгдэнэ)
  */
 (function () {
   const { html, raw, cx, icon } = Nar;
@@ -96,6 +98,7 @@
     const r = curRoute();
     return html`${cfg
       .nav()
+      .filter((it) => it.bn !== false)
       .slice(0, 5)
       .map(
         (it) =>
@@ -110,6 +113,7 @@
   let lastView = null;
   function boot(c) {
     cfg = c;
+    S.role = cfg.role;
     cfg.routes.notifications = cfg.routes.notifications || {
       title: 'Мэдэгдэл',
       topics: ['notifs'],
@@ -122,7 +126,9 @@
       '<div class="app"><aside id="side" class="lg-up"></aside><div id="drawer"></div><div class="app-main"><header id="hdr" class="hdr"></header>' +
       '<main id="main" class="main scroll' +
       (cfg.mobile === 'bottom' ? ' has-bnav' : '') +
-      '"><div id="view" class="view"></div></main></div>' +
+      '">' +
+      (cfg.banner ? '<div id="banner"></div>' : '') +
+      '<div id="view" class="view"></div></main></div>' +
       (cfg.mobile === 'bottom'
         ? '<nav id="bnav" class="bnav lg-down" aria-label="Доод цэс"></nav>'
         : '') +
@@ -178,6 +184,8 @@
     ];
     if (cfg.mobile === 'bottom')
       regions.push({ el: '#bnav', render: bottomNav, topics: ['notifs', 'reqs', 'pay', 'nav'] });
+    if (cfg.banner)
+      regions.push({ el: '#banner', render: cfg.banner, topics: cfg.bannerTopics || ['all'] });
     const actions = Object.assign(
       {
         theme: () => S.toggleTheme(),
@@ -203,7 +211,32 @@
       },
     });
     Shell.refresh = app.refresh;
+    watchNotifs(cfg.role);
     return app;
+  }
+
+  /** Өөр таб (ажилтан, удирдлага, систем)-аас шинэ мэдэгдэл ирмэгц тэр дороо toast гаргана */
+  function watchNotifs(role) {
+    const top = () => (S.state.notifs[role][0] || {}).id;
+    let seen = top();
+    S.on(() => {
+      const list = S.state.notifs[role];
+      if (!list.length || list[0].id === seen) return;
+      const fresh = [];
+      for (const n of list) {
+        if (n.id === seen) break;
+        if (n.from !== role) fresh.push(n);
+      }
+      seen = list[0].id;
+      if (fresh.length) {
+        const n = fresh[0];
+        Nar.toast(
+          n.t,
+          n.s + (fresh.length > 1 ? ' · +' + (fresh.length - 1) + ' мэдэгдэл' : ''),
+          n.k,
+        );
+      }
+    });
   }
 
   function notifView(role) {

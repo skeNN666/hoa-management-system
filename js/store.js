@@ -18,6 +18,8 @@
   const ME = D.ME;
   const hm = D.hm;
   let nid = Date.now() % 100000;
+  let inTick = false;
+  const CUR = D.CUR_MONTH;
 
   function fresh() {
     return {
@@ -112,10 +114,16 @@
       paid: false,
       wilt: 0.3,
       park: { stage: 'idle', slot: '', hold: 0, pos: 0 },
+      // ил тод тайлан
+      fund: { opening: D.FUND_OPEN, inflow: 0 },
+      ledger: D.LEDGER.map((x) => ({ ...x })),
+      works: D.WORKS.map((x) => ({ ...x })),
+      obligations: D.OBLIGATIONS.map((x) => ({ ...x, paid: false })),
+      reportPub: { '2026-09': '10/01 09:00' },
     };
   }
 
-  const store = Nar.createStore({ key: KEY, version: 2, init: fresh, keep: ['theme'] });
+  const store = Nar.createStore({ key: KEY, version: 4, init: fresh, keep: ['theme'] });
   let st = store.state;
   if (!st.theme)
     st.theme =
@@ -140,6 +148,21 @@
     store.emit(t);
   };
 
+  /** хийсэн ажлыг энэ сарын тайланд бүртгэнэ */
+  function logWork({ cat, t, where, by, req, src = 'staff' }) {
+    st.works.unshift({
+      id: 'WK-' + (201 + st.works.length),
+      month: CUR,
+      date: D.md(),
+      cat,
+      t,
+      where: where || '',
+      by,
+      src,
+      req,
+    });
+  }
+
   const S = {
     get state() {
       return store.state;
@@ -151,8 +174,10 @@
     emit,
     store,
     toast: (t, s, k) => Nar.toast(t, s, k),
+    role: '',
     notify(r, k, t, s) {
-      st.notifs[r] = [{ id: nid++, k, t, s, time: hm(), unread: true }]
+      const from = inTick ? 'sys' : S.role;
+      st.notifs[r] = [{ id: nid++, k, t, s, time: hm(), unread: true, from }]
         .concat(st.notifs[r])
         .slice(0, 30);
     },
@@ -192,7 +217,7 @@
         .slice(0, 20);
       S.notify('resident', 'ok', 'Төлбөр амжилттай', '₮97,000 · eBarimt имэйлээр очлоо');
       S.notify('admin', 'ok', 'Төлбөр орлоо', '5-р байр 34 тоот · ₮97,000');
-      emit(['pay', 'notifs', 'payments']);
+      emit(['pay', 'notifs', 'payments', 'fund']);
     },
     remind(b, n) {
       st.reminded[b + '-' + n] = true;
@@ -245,7 +270,32 @@
       const q = st.reqs.find((x) => x.id === id);
       if (!q) return;
       Object.assign(q, { st: s, by: by || q.by, stAt: Date.now() });
-      if (q.b === ME.b && q.u === ME.n)
+      const own = q.b === ME.b && q.u === ME.n;
+      if (s === 2)
+        S.notify(
+          'admin',
+          'acc',
+          'Ажил эхэллээ · ' + q.cat,
+          id + ' · ' + q.title + ' · ' + (q.by || ''),
+        );
+      if (s === 4) {
+        const where = q.b + '-р байр';
+        S.notify(
+          'admin',
+          'ok',
+          'Ажил дууслаа · ' + q.cat,
+          id + ' · ' + q.title + ' · ' + (q.by || ''),
+        );
+        if (!own)
+          S.notify(
+            'resident',
+            'ok',
+            'Хийгдсэн ажил · ' + q.cat,
+            q.title + ' · ' + where + ' · ' + (q.by || ''),
+          );
+        logWork({ cat: q.cat, t: q.title, where, by: q.by || 'Ажилтан', req: id });
+      }
+      if (own)
         S.notify(
           'resident',
           s === 4 ? 'ok' : 'acc',
@@ -256,7 +306,7 @@
               : 'Хүсэлтийн төлөв өөрчлөгдлөө',
           id + ' · ' + (q.by || ''),
         );
-      emit(['reqs', 'notifs']);
+      emit(s === 4 ? ['reqs', 'notifs', 'works'] : ['reqs', 'notifs']);
     },
     addPhoto(id) {
       const q = st.reqs.find((x) => x.id === id);
@@ -314,7 +364,19 @@
         const l = st.lights.find((x) => x.id === id);
         if (l) l.st = 'on';
         S.notify('admin', 'ok', 'Гэрэл засагдлаа · ' + id, 'Н. Тунгалаг');
-        emit(['lights', 'notifs']);
+        S.notify(
+          'resident',
+          'ok',
+          'Хийгдсэн ажил · Цахилгаан',
+          'Гадна гэрэл ' + id + ' засагдлаа · ' + (l ? l.loc : ''),
+        );
+        logWork({
+          cat: 'Цахилгаан',
+          t: 'Гадна гэрэл ' + id + ' засав',
+          where: l ? l.loc : '',
+          by: 'Н. Тунгалаг',
+        });
+        emit(['lights', 'notifs', 'works']);
       }, 9000);
     },
 
@@ -355,6 +417,79 @@
       emit(['slots', 'park']);
     },
 
+    /* ---------- Ил тод тайлан ---------- */
+    /** СӨХ-ийн сангийн байдал (энэ сар) */
+    fund() {
+      const u = units.flat();
+      const collected = u.filter((x) => x.st === 0).reduce((a, x) => a + x.amt, 0) + st.fund.inflow;
+      const debtUnits = u.filter((x) => x.st !== 0);
+      const debt = debtUnits.reduce((a, x) => a + x.amt + x.prev, 0);
+      const billed = u.reduce((a, x) => a + x.amt, 0);
+      const spent = st.ledger.filter((x) => x.month === CUR).reduce((a, x) => a + x.amt, 0);
+      const due = st.obligations.filter((o) => !o.paid).reduce((a, o) => a + o.amt, 0);
+      const balance = st.fund.opening + collected - spent;
+      const short = Math.max(0, due - balance);
+      return {
+        opening: st.fund.opening,
+        collected,
+        billed,
+        rate: billed ? (billed - debtUnits.reduce((a, x) => a + x.amt, 0)) / billed : 1,
+        spent,
+        due,
+        balance,
+        short,
+        cover: due ? Math.min(1, Math.max(0, balance / due)) : 1,
+        debt,
+        debtors: debtUnits.length,
+      };
+    },
+    addExpense({ cat, t, amt, vendor }) {
+      const id = 'EX-' + (301 + st.ledger.length);
+      st.ledger.unshift({ id, month: CUR, date: D.md(), cat, t, amt, vendor: vendor || '—' });
+      S.notify('resident', 'acc', 'СӨХ шинэ зарлага нийтэллээ', t + ' · ' + D.money(amt));
+      emit(['ledger', 'fund', 'notifs']);
+      S.toast('Зарлага нийтлэгдлээ', 'Оршин суугчид шууд харагдана', 'ok');
+    },
+    addWork({ cat, t, where }) {
+      logWork({ cat, t, where, by: 'Удирдлага', src: 'admin' });
+      S.notify('resident', 'ok', 'Хийгдсэн ажил · ' + cat, t + (where ? ' · ' + where : ''));
+      emit(['works', 'notifs']);
+      S.toast('Ажил тайланд нэмэгдлээ', 'Оршин суугчдад мэдэгдэл очлоо', 'ok');
+    },
+    payObligation(id) {
+      const o = st.obligations.find((x) => x.id === id);
+      if (!o || o.paid) return;
+      if (S.fund().balance < o.amt)
+        return S.toast('Сангийн үлдэгдэл хүрэлцэхгүй', 'Өр барагдуулж байж төлөх боломжтой', 'bad');
+      o.paid = true;
+      st.ledger.unshift({
+        id: 'EX-' + (301 + st.ledger.length),
+        month: CUR,
+        date: D.md(),
+        cat: o.cat,
+        t: o.t,
+        amt: o.amt,
+        vendor: 'Төлөвлөсөн зардал',
+      });
+      S.notify('resident', 'acc', 'СӨХ шинэ зарлага нийтэллээ', o.t + ' · ' + D.money(o.amt));
+      emit(['ledger', 'fund', 'notifs']);
+      S.toast('Зардал төлөгдлөө', o.t, 'ok');
+    },
+    publishReport(month) {
+      const label = (D.MONTHS.find((m) => m[0] === month) || [0, month])[1];
+      const spent = st.ledger.filter((x) => x.month === month).reduce((a, x) => a + x.amt, 0);
+      const n = st.works.filter((x) => x.month === month).length;
+      st.reportPub[month] = D.md() + ' ' + hm();
+      S.notify(
+        'resident',
+        'acc',
+        label + 'ын тайлан нийтлэгдлээ',
+        'Зарлага ' + D.money(spent) + ' · хийсэн ажил ' + n,
+      );
+      emit(['ledger', 'notifs']);
+      S.toast('Тайлан нийтлэгдлээ', '1,248 айлд мэдэгдэл очлоо', 'ok');
+    },
+
     setInvoice(p) {
       Object.assign(st.invoice, p);
       emit(['invoice']);
@@ -366,6 +501,14 @@
     },
 
     tick() {
+      inTick = true;
+      try {
+        S._tick();
+      } finally {
+        inTick = false;
+      }
+    },
+    _tick() {
       const sec = ++st.sec;
       const T = ['tick'];
       if (!st.paid) {
@@ -386,7 +529,8 @@
         ]
           .concat(st.payments)
           .slice(0, 20);
-        T.push('payments');
+        st.fund.inflow += st.payments[0].amt;
+        T.push('payments', 'fund');
       }
       if ((sec === 12 || sec === 45 || sec === 90) && st.incoming.length) {
         const q = st.incoming.shift();
@@ -423,7 +567,19 @@
           x.st = 'fixed';
           x.times[4] = hm();
           S.notify('admin', 'ok', 'Ус алдалт засагдлаа', x.b + '-р байр ' + x.u);
-          T.push('leaks', 'notifs');
+          S.notify(
+            'resident',
+            'ok',
+            'Хийгдсэн ажил · Сантехник',
+            'Ус алдалт засагдлаа · ' + x.b + '-р байр ' + x.u + ' тоот · ' + (x.by || ''),
+          );
+          logWork({
+            cat: 'Сантехник',
+            t: 'Ус алдалтыг засаж, хавхлагыг сэргээв · ' + x.u + ' тоот',
+            where: x.b + '-р байр',
+            by: x.by || 'С. Мөнхзул',
+          });
+          T.push('leaks', 'notifs', 'works');
         }
       });
       if (sec === 25 || (sec > 25 && sec % 90 === 0))
@@ -461,7 +617,10 @@
           Object.assign(c, {
             st: sec % 3 === 0 ? 2 : 1,
             plate: 1000 + ((sec * 37) % 8999) + ' УБ' + 'АБВГДЕ'[sec % 6],
-            color: D.CAR_COLORS[sec % D.CAR_COLORS.length],
+            color:
+              D.CAR_COLORS[
+                (Math.floor(sec / 8) * 3 + (zone === 'p' ? 1 : 5)) % D.CAR_COLORS.length
+              ],
           });
         else Object.assign(c, { st: 0, plate: '' });
         T.push('slots');
