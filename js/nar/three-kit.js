@@ -174,7 +174,8 @@
         orbit.sph.copy(orbit.goal);
       }
     }
-    new ResizeObserver(resize).observe(host);
+    const ro = new ResizeObserver(resize);
+    ro.observe(host);
     resize();
     requestAnimationFrame(() => {
       lastK = 0;
@@ -200,7 +201,9 @@
     });
     const frames = [];
     const clock = new THREE.Clock();
+    let dead = false;
     (function loop() {
+      if (dead) return;
       requestAnimationFrame(loop);
       if (!host.isConnected) return; // хуудаснаас салсан үед зурахгүй (keep-alive)
       const t = clock.getElapsedTime();
@@ -227,7 +230,28 @@
       labels.add(a, html, cls);
       return a;
     }
-    const api = { renderer, scene, camera, orbit, clickables, frames, clear, label, onClick() {} };
+    /** үзэгдлийг бүрэн устгана (WebGL context-ыг чөлөөлж, canvas, шошгыг хасна) */
+    function dispose() {
+      dead = true;
+      ro.disconnect();
+      clear(scene);
+      renderer.dispose();
+      renderer.forceContextLoss();
+      renderer.domElement.remove();
+      labels.root.remove();
+    }
+    const api = {
+      renderer,
+      scene,
+      camera,
+      orbit,
+      clickables,
+      frames,
+      clear,
+      label,
+      dispose,
+      onClick() {},
+    };
     return api;
   }
 

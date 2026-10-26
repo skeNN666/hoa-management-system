@@ -20,6 +20,8 @@
     const kind = cur ? W.kindOf(cur.cat, cur.st) : null;
     const pslots = s.slots.filter((x) => x.zone === 'p');
     const free = pslots.filter((x) => x.st === 0).length;
+    // жижиг зогсоол нь хотхоны map дээрх зогсоолтой ижил баганатай
+    const lotCols = (D.LAYOUT.lots[0] || { cols: 12 }).cols;
     const myLeak = s.leaks.find((x) => x.b === ME.b && x.u === ME.n && x.st !== 'fixed');
     const life = Math.round((1 - (s.paid ? 0 : s.wilt)) * 100);
     const park = s.park;
@@ -72,8 +74,8 @@
                 </button>`}
         </section>
         ${fundCard(s)}
-        <div class="cols c1 md-c2">
-          <a href="#/parking" class="card p4 col g3"
+        <div class="cols c1 md-c2 st">
+          <a href="#/parking" class="card p4 col g3 jb"
             ><div class="flex jb">
               <span class="th">Зогсоол · шууд</span><span class="link">3D зураг →</span>
             </div>
@@ -81,17 +83,12 @@
               <span class="${cx('free-box', free ? 'ok' : 'bad')}"
                 ><b class="num t24">${free}</b><span class="t11 b">сул</span></span
               >
-              <div class="mini-lot grow">
+              <div class="mini-lot grow" style="${'--cols:' + lotCols}">
                 ${pslots.map(
-                  (x) =>
+                  (x, i) =>
                     html`<i
-                      class="${x.mine
-                        ? 'accbg'
-                        : x.st === 0
-                          ? 'okbg'
-                          : x.st === 2
-                            ? 'warnbg'
-                            : 'occ'}"
+                      class="${(Math.floor(i / lotCols) % 2 ? 'dn ' : '') +
+                      (x.mine ? 'accbg' : x.st === 0 ? 'okbg' : x.st === 2 ? 'warnbg' : 'occ')}"
                     ></i>`,
                 )}
               </div>
@@ -106,7 +103,7 @@
                     : 'Сул зогсоол алга'}</b
             ></a
           >
-          <section class="${cx('card p4 col g3', myLeak && myLeak.st === 'active' && 'hot')}">
+          <section class="${cx('card p4 col g3 jb', myLeak && myLeak.st === 'active' && 'hot')}">
             <div class="flex jb ic">
               <span class="flex ic g2 b t14"
                 ><span class="chip icon s c-acc">${ic('droplet', 15)}</span>Ус мэдрэгч чип</span
@@ -139,23 +136,6 @@
               ><button class="txt-btn" data-act="demoLeak">Демо</button>
             </div>
           </section>
-        </div>
-        <div class="card p3 cols gs c4 quick">
-          ${[
-            ['Төлөх', 'card', 'pay'],
-            ['Хүсэлт', 'plus', 'req'],
-            ['Зогсоол', 'car', 'go:parking'],
-            ['Нэхэмжлэл', 'file', 'go:pay'],
-          ].map(
-            ([l, i, a]) =>
-              html`<button
-                class="col ic g1 p2"
-                data-act="${a.startsWith('go:') ? 'go' : a}"
-                data-arg="${a.slice(3)}"
-              >
-                <span class="q-ic">${ic(i, 21)}</span><span class="t11 b">${l}</span>
-              </button>`,
-          )}
         </div>
       </div>
       <aside class="col g4">
@@ -206,6 +186,23 @@
               </div>
             </section>`}
         <button class="btn p" data-act="req">${ic('plus', 17)}Хүсэлт гаргах</button>
+        <div class="card p3 cols gs c4 quick">
+          ${[
+            ['Төлөх', 'card', 'pay'],
+            ['Хүсэлт', 'plus', 'req'],
+            ['Зогсоол', 'car', 'go:parking'],
+            ['Нэхэмжлэл', 'file', 'go:pay'],
+          ].map(
+            ([l, i, a]) =>
+              html`<button
+                class="col ic g1 p2"
+                data-act="${a.startsWith('go:') ? 'go' : a}"
+                data-arg="${a.slice(3)}"
+              >
+                <span class="q-ic">${ic(i, 21)}</span><span class="t11 b">${l}</span>
+              </button>`,
+          )}
+        </div>
       </aside>
     </div>`;
   }
@@ -408,15 +405,15 @@
         ><b class="t18">${p.slot}-д зогссон</b>
         <p class="muted t13">${ME.plate} · мэдрэгчээр автоматаар бүртгэгдсэн</p>
         <button class="txt-btn" data-act="parkLeave">Демо: машин гарах</button>`;
-    return html`<div class="cols c1 xl-side">
-      <section class="card p0 ovh park-box o2 xl-o1">
+    return html`<div class="col g4">
+      <section class="card p5 col g3 ic center">${side}</section>
+      <section class="card p0 ovh park-box">
         ${Nar.keep('lot3d', 'fill')}
         <div class="map-title">
-          <b class="t18 b9">Гадна зогсоол · P01–P48</b>
+          <b class="t18 b9">Гадна зогсоол · ${Layout.slots(D.LAYOUT)} байр</b>
           <p class="t12 b" style="color:#7A7365">Ногоон P — сул. Дарж 10 минут захиална.</p>
         </div>
       </section>
-      <section class="card p5 col g3 ic center o1 xl-o2">${side}</section>
     </div>`;
   }
   function parkAfter() {
@@ -439,7 +436,7 @@
           <span class="avatar t20" style="width:56px;height:56px">Б</span>
           <div>
             <b class="t18">Бат</b>
-            <p class="muted t14 num">5-р байр · 34 тоот · 72.4 м²</p>
+            <p class="muted t14 num">${ME.b}-р байр · ${ME.n} тоот · 72.4 м²</p>
           </div>
         </div>
         ${[
@@ -705,13 +702,14 @@
   Shell.boot({
     role: 'resident',
     brand: 'СӨХ Platform',
-    sub: 'Нарны хотхон · 5-р байр 34 тоот',
+    sub: D.LAYOUT.n + ' · ' + D.ME.b + '-р байр ' + D.ME.n + ' тоот',
     mobile: 'bottom',
     profile: () =>
       html`<div class="side-profile">
         <span class="avatar">Б</span>
         <div>
-          <b class="t14">Бат</b><span class="block t12 side-mu num">5-р байр · 34 тоот</span>
+          <b class="t14">Бат</b
+          ><span class="block t12 side-mu num">${ME.b}-р байр · ${ME.n} тоот</span>
         </div>
       </div>`,
     nav: () => {

@@ -2,45 +2,16 @@
 (function () {
   const { html, cx, icon, raw } = Nar;
   const ic = (n, s) => raw(icon(n, s));
-  const COMPLEXES = [
-    {
-      id: 'narny',
-      n: 'Нарны хотхон',
-      sokh: 'Нарны СӨХ',
-      d: 'Хан-Уул',
-      b: 6,
-      u: 1248,
-      c: '#0A72B8',
-    },
-    {
-      id: 'altan',
-      n: 'Алтан гадас хотхон',
-      sokh: 'Алтан гадас СӨХ',
-      d: 'Баянгол',
-      b: 8,
-      u: 1630,
-      c: '#B5651E',
-    },
-    {
-      id: 'khangai',
-      n: 'Хангай хотхон',
-      sokh: 'Хангай-Өргөө СӨХ',
-      d: 'Баянзүрх',
-      b: 6,
-      u: 1100,
-      c: '#0E7268',
-    },
-    { id: 'od', n: 'Од хотхон', sokh: 'Од-Эрдэм СӨХ', d: 'Баянзүрх', b: 4, u: 612, c: '#6D3FD6' },
-    {
-      id: 'tsetseg',
-      n: 'Цэцэг хотхон',
-      sokh: 'Цэцэг СӨХ',
-      d: 'Сүхбаатар',
-      b: 5,
-      u: 840,
-      c: '#2E8B57',
-    },
-  ];
+  // хотхоны жагсаалт: js/layout.js-ийн бүртгэл (админ шинээр бүртгэсэн хотхонууд ч энд гарна)
+  const COMPLEXES = Layout.all().map((L) => ({
+    id: L.id,
+    n: L.n,
+    sokh: L.sokh,
+    d: L.d,
+    b: L.buildings.length,
+    u: Layout.units(L),
+    c: L.c,
+  }));
   const ROLES = {
     admin: {
       l: 'Админ',
@@ -259,6 +230,7 @@
         if (s.id.trim() !== R.demo[0] || s.pw !== R.demo[1])
           return set({ err: 'Нэвтрэх нэр эсвэл нууц үг буруу байна', shake: s.shake + 1 });
         set({ err: '', busy: true });
+        Layout.setCurrent(s.cx); // admin / staff / resident хуудас энэ хотхоны map-ыг ачаална
         setTimeout(() => (location.href = R.go), 650);
       },
     },

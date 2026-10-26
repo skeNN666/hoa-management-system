@@ -101,29 +101,36 @@
     };
   });
 
-  /** 16 давхар × 13 айлын зүсэлт: бороо, босоо хоолойд урсах ус, алдсан айлын долгион */
+  /** Байрны зүсэлт (давхар × давхартаа байх айл — D.BUILDINGS-ээс): бороо, босоо хоолойд урсах ус, алдсан айлын долгион */
   function leakBuilding(b, leaks, storm) {
+    const B = D.BUILDINGS[b - 1] || { per: 13, units: 208 };
+    const per = B.per,
+      FL = Math.ceil(B.units / per);
+    const ris = [...new Set(RISERS.map((c) => Math.round((c * (per - 1)) / 12)))];
     const mine = leaks.filter((x) => x.b === b && x.st !== 'fixed');
     const riserCls = (k) => {
-      const xs = mine.filter((x) => Math.abs(((x.u - 1) % 13) - RISERS[k]) <= 1);
+      const xs = mine.filter((x) => Math.abs(((x.u - 1) % per) - ris[k]) <= 1);
       return xs.some((x) => x.st === 'active') ? 'alarm' : xs.length ? 'stop' : '';
     };
     let rows = '';
-    for (let f = 16; f >= 1; f--) {
+    for (let f = FL; f >= 1; f--) {
       let cells = '';
-      if (f === 16)
-        cells += RISERS.map(
-          (c, k) =>
-            '<span class="riser ' +
-            riserCls(k) +
-            '" style="left:calc(' +
-            ((c + 1) / 13) * 100 +
-            '% - 2px)"></span>',
-        ).join('');
-      for (let k = 0; k < 13; k++) {
-        const u = (f - 1) * 13 + k + 1;
+      if (f === FL)
+        cells += ris
+          .map(
+            (c, k) =>
+              '<span class="riser ' +
+              riserCls(k) +
+              '" style="left:calc(' +
+              ((c + 1) / per) * 100 +
+              '% - 2px)"></span>',
+          )
+          .join('');
+      for (let k = 0; k < per; k++) {
+        const u = (f - 1) * per + k + 1;
+        if (u > B.units) break;
         const L = mine.find((x) => x.u === u);
-        const below = mine.find((x) => x.st === 'active' && x.u === u + 13);
+        const below = mine.find((x) => x.st === 'active' && x.u === u + per);
         const cls = L ? 'lk-' + L.st : below ? 'lk-below' : '';
         cells +=
           '<div title="' +
@@ -171,7 +178,9 @@
           )
           .join('') +
         '</div>' +
-        '<div class="lk-bld">' +
+        '<div class="lk-bld" style="--per:' +
+        per +
+        '">' +
         rows +
         '<div class="lk-base"><span class="spin"></span><span class="col"><span style="color:#fff">Подвал · ус өргөх насос</span><span class="num">Даралт ' +
         (act ? '3.2' : '4.2') +

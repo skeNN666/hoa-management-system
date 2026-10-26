@@ -289,7 +289,7 @@
   Shell.boot({
     role: 'staff',
     brand: 'СӨХ Staff',
-    sub: 'Нарны хотхон',
+    sub: D.LAYOUT.n,
     mobile: 'bottom',
     profile: () =>
       html`<div class="side-profile">

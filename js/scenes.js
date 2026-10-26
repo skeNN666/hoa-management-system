@@ -3,6 +3,7 @@
  *   const sc = Scenes.complex(el, { onSelectB(i), onSelectLight(id) });
  *   sc.update({ lights, leaks, units, slots, mode, night, selB, selLight })
  *   const pk = Scenes.parking(el, { zone:'p', onPick(slot) });  pk.update({ slots, selected })
+ * Хотхоны map нь D.LAYOUT (js/layout.js)-оос зурагдана — хотхон бүр өөрийн бүтэцтэй.
  *
  * Хотхоны map дээрх зогсоол болон "Зогсоол" хуудасны 3D нь нэг өгөгдлөөр (S.state.slots) ажиллаж,
  * машин орох/гарах хөдөлгөөн хоёр газар ижил хугацаатай (T_MOVE) явагдана:
@@ -11,9 +12,6 @@
  */
 (function () {
   const { mat, box, carBody } = Nar3D;
-  const SC = 10;
-  const px = (x) => (x - 380) / SC;
-  const pz = (y) => (y - 280) / SC;
   const FLOOR_H = 1.15;
   const T_MOVE = 7; // орох / гарах хөдөлгөөний нийт хугацаа (сек) — хоёр үзэгдэлд ижил
 
@@ -305,35 +303,6 @@
     return { sync, pads, disp, cars: pk.cars };
   }
 
-  /* ======================================================================
-     Хотхоны 3D map
-     ====================================================================== */
-  const TREES = [
-    [20, 30, 0],
-    [160, 30, 1],
-    [170, 150, 0],
-    [24, 150, 1],
-    [180, 210, 0],
-    [330, 30, 0],
-    [330, 120, 1],
-    [520, 30, 0],
-    [522, 120, 0],
-    [740, 30, 1],
-    [740, 210, 0],
-    [560, 220, 0],
-    [690, 212, 1],
-    [24, 310, 0],
-    [170, 312, 1],
-    [170, 420, 0],
-    [40, 520, 1],
-    [130, 520, 0],
-    [320, 320, 0],
-    [320, 530, 1],
-    [190, 530, 0],
-    [736, 300, 0],
-    [600, 300, 0],
-    [520, 300, 1],
-  ];
   const WALLS = ['#EEE9E0', '#E3E8EE', '#F0E6DA', '#E6EBE3', '#EDE3E5', '#E2E7F0'];
   const shade = (hex, k) => {
     const c = new THREE.Color(hex);
@@ -379,25 +348,43 @@
     return t;
   }
 
+  /* ======================================================================
+     Хотхоны 3D map — бүх зүйл D.LAYOUT (js/layout.js)-оос зурагдана:
+     зам, бетон талбай, байр (хаалганы чиглэлтэй), тоглоом/спорт талбай,
+     зогсоол (эгнээ, машин орох зам), гэрэл, мод. Хотхон бүр өөр map-тай.
+     ====================================================================== */
+  const isH = (rd) => rd.z1 === rd.z2;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const DOOR = {
+    n: [0, -1],
+    s: [0, 1],
+    w: [-1, 0],
+    e: [1, 0],
+  };
+
   function complex(host, opts) {
-    const B = Nar3D.stage(host, [62, 72, 84], {
+    const LY = opts.layout || D.LAYOUT; // builder-ийн 3D preview өөр layout өгч болно
+    const [MW, MD] = LY.size;
+    const K = Math.max(1, MW / 84, MD / 64); // том хотхонд камер холдоно
+    const B = Nar3D.stage(host, [62 * K, 72 * K, 84 * K], {
       target: [0, 2, 2],
       min: 45,
-      max: 180,
+      max: 180 * K,
       maxPolar: Math.PI / 2.25,
     });
     const { scene } = B;
     const fogC = new THREE.Color();
-    scene.fog = new THREE.Fog(fogC, 110, 220);
+    scene.fog = new THREE.Fog(fogC, 110 * K, 220 * K);
     const hemi = new THREE.HemisphereLight('#fff', '#C9BFA8', 0.9);
     scene.add(hemi);
     const sun = new THREE.DirectionalLight('#FFF4E2', 1.7);
-    sun.position.set(34, 52, 18);
+    sun.position.set(34 * K, 52 * K, 18 * K);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.02;
-    Object.assign(sun.shadow.camera, { left: -50, right: 50, top: 50, bottom: -50 });
+    const SH = Math.max(MW, MD) / 2 + 8;
+    Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, far: 200 * K });
     scene.add(sun);
     const ground = new THREE.Group(),
       blds = new THREE.Group(),
@@ -406,9 +393,9 @@
     scene.add(ground, blds, lightsG, deco);
 
     // мод — дугуй титэмтэй ба шилмүүст
-    TREES.forEach(([x, y, pine], i) => {
+    LY.trees.forEach(([x, z, pine], i) => {
       const g = new THREE.Group();
-      g.position.set(px(x), 0.3, pz(y));
+      g.position.set(x, 0.3, z);
       const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.2, 6), mat('#6E5038'));
       tr.position.y = 0.6;
       tr.castShadow = true;
@@ -446,33 +433,43 @@
       deco.add(g);
     });
 
-    /* ---------- зогсоол (бодит P01–P48-тэй sync) ---------- */
-    const LOT_ROWS = [12.8, 17.2, 19.9, 24.3];
-    const LOT_AISLE = [15.0, 22.1];
-    const LANE = 1; // төв замын эгнээ (орцны гэрлийн шонг тойроно)
-    const spots = {};
-    const lot = lotCtl(B, deco, {
-      spots,
-      padW: 2.15,
-      padD: 2.05,
-      padY: 0.375,
-      opacity: 0.8,
-      carScale: 0.7,
-      ex: 3.5,
-      xx: 3.5,
-      y: (x) => (x >= 4.4 ? 0.37 : x <= 2.2 ? 0.03 : 0.03 + ((x - 2.2) / 2.2) * 0.34),
-      pre: (a) => [
-        Ln([LANE, 31], [LANE, a.az + 2.5]),
-        Qd([LANE, a.az + 2.5], [LANE, a.az], [3.5, a.az]),
-      ],
-      post: (a) => [
-        Qd([3.5, a.az], [LANE, a.az], [LANE, a.az + 2.5]),
-        Ln([LANE, a.az + 2.5], [LANE, 31]),
-      ],
+    /* ---------- зогсоол (бодит P01…-тэй sync). Машин төв замын эгнээгээр орж ирнэ ---------- */
+    const lots = LY.lots.map((l) => {
+      const spots = {},
+        ex = Layout.lotEx(l),
+        lane = l.lane,
+        span = Math.max(0.6, Math.abs(ex - lane) - 0.8);
+      const ctl = lotCtl(B, deco, {
+        spots,
+        padW: 2.15,
+        padD: 2.05,
+        padY: 0.375,
+        opacity: 0.8,
+        carScale: 0.7,
+        ex,
+        xx: ex,
+        // замаас зогсоолын талбай руу өгсөх налуу
+        y: (x) => 0.03 + clamp((Math.abs(x - lane) - 0.8) / span, 0, 1) * 0.34,
+        pre: (a) => {
+          const sg = Math.sign(l.gate - a.az) || 1;
+          return [
+            Ln([lane, l.gate], [lane, a.az + sg * 2.5]),
+            Qd([lane, a.az + sg * 2.5], [lane, a.az], [ex, a.az]),
+          ];
+        },
+        post: (a) => {
+          const sg = Math.sign(l.gate - a.az) || 1;
+          return [
+            Qd([ex, a.az], [lane, a.az], [lane, a.az + sg * 2.5]),
+            Ln([lane, a.az + sg * 2.5], [lane, l.gate]),
+          ];
+        },
+      });
+      return { l, spots, ctl, pos: Layout.lotSpots(l) };
     });
     let lotInit = false;
 
-    /* ---------- хөтөч: төлбөр төлөөгүй айлтай байр руу дагуулж явна ---------- */
+    /* ---------- хөтөч: төлбөр төлөөгүй айлтай байр руу замаар дагуулж явна ---------- */
     const guide = Nar3D.person({ shirt: '#0A72B8', pants: '#24324A', hat: '#F5D130' });
     guide.scale.setScalar(1.35);
     const gRing = new THREE.Mesh(
@@ -520,50 +517,36 @@
     halo.visible = beam.visible = false;
     deco.add(halo, beam);
 
-    const SIDE_N = -4.75,
-      SIDE_S = 0.75,
-      HOME = { x: 3.5, z: SIDE_S };
-    const doorOf = (b) => {
-      const w = b.w / SC,
-        d = b.d / SC,
-        x = px(b.x) + w / 2;
-      const north = b.y < 260;
-      return {
-        x,
-        z: north ? pz(b.y) + d + 0.9 : pz(b.y) - 0.9,
-        side: north ? SIDE_N : SIDE_S,
-        face: north ? Math.PI / 2 : -Math.PI / 2,
-        cx: x,
-        cz: pz(b.y) + d / 2,
-        r: Math.max(w, d) / 2 + 1.2,
-        h: b.fl * FLOOR_H + 0.6,
-      };
+    const D_B = LY.buildings;
+    const hRoad = LY.roads.find(isH),
+      vRoad = LY.roads.find((r) => !isH(r));
+    const HOME = { x: vRoad ? vRoad.x1 + 3.2 : 0, z: hRoad ? hRoad.z1 + 2.8 : 0 };
+    const target = (bi) => {
+      const b = D_B[bi],
+        d = Layout.doorOf(b);
+      return { ...d, r: Math.max(b.w, b.d) / 2 + 1.2, h: b.fl * FLOOR_H + 0.6 };
     };
-    const sideOf = (z) => (z < -2 ? SIDE_N : SIDE_S);
-    function route(P, D) {
-      const sp = sideOf(P.z);
-      const pts = [
-        [P.x, P.z],
-        [P.x, sp],
-        [D.x, sp],
-      ];
-      if (sp !== D.side) pts.push([D.x, D.side]);
-      pts.push([D.x, D.z]);
-      return pts.filter(
-        (p, i) => !i || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.05,
-      );
-    }
-    const G = { x: HOME.x, z: HOME.z, path: [], mode: 'idle', until: 0, bi: -1, q: -1, sel: null };
+    const G = {
+      x: HOME.x,
+      z: HOME.z,
+      dir: null,
+      path: [],
+      mode: 'idle',
+      until: 0,
+      bi: -1,
+      q: -1,
+      sel: null,
+    };
     let debtInfo = [];
     const M1 = (n) => '₮' + (n / 1e6).toFixed(1) + 'M';
     function goTo(bi) {
       G.bi = bi;
-      const dest = bi < 0 ? { ...HOME, side: SIDE_S } : doorOf(D_B[bi]);
-      G.path = route(G, dest).slice(1);
+      const dest = bi < 0 ? { ...HOME, dir: null } : Layout.doorOf(D_B[bi]);
+      G.path = Layout.route(LY, G, dest, G.dir, dest.dir).slice(1);
+      G.dir = null;
       G.mode = 'walk';
       halo.visible = beam.visible = false;
     }
-    const D_B = D.BUILDINGS;
     function nextTarget() {
       if (G.sel != null) return goTo(G.sel);
       const list = (debtInfo.order || []).filter((x) => x.n > 0); // хамгийн олон өртэйгээс
@@ -625,8 +608,9 @@
           G.mode = 'show';
           G.until = t + 6.5;
           if (G.bi >= 0) {
-            const d = doorOf(D_B[G.bi]);
-            guide.rotation.y = d.face;
+            const d = target(G.bi);
+            G.dir = d.dir;
+            guide.rotation.y = Math.atan2(d.dir[1], -d.dir[0]);
             const info = debtInfo[G.bi];
             const col = info && info.n ? '#E0525A' : '#2EAE68';
             halo.material.color.set(col);
@@ -651,7 +635,7 @@
       if (halo.visible) {
         const k = (t * 0.8) % 1;
         halo.material.opacity = 0.9 * (1 - k);
-        halo.scale.setScalar((doorOf(D_B[G.bi]).r || 4) * (0.85 + k * 0.35));
+        halo.scale.setScalar(target(G.bi).r * (0.85 + k * 0.35));
         beam.material.opacity = 0.16 + Math.sin(t * 5) * 0.08;
       }
     });
@@ -677,6 +661,7 @@
       lightsG.children.forEach((g) => B.clickables.push(g));
     };
 
+    /* ---------- газар: зүлэг, бетон талбай, зам, тоглоом/спорт талбай, зогсоол ---------- */
     function buildGround(night) {
       B.clear(ground);
       const add = (m, x, y, z, flat) => {
@@ -686,132 +671,139 @@
         ground.add(m);
         return m;
       };
+      const plane = (w, d, m) => new THREE.Mesh(new THREE.PlaneGeometry(w, d), m);
       const lawn = Nar3D.grainTexture(night ? '#1F3A2E' : '#A8C98A', 22, 10);
       const asphalt = Nar3D.grainTexture(night ? '#262C44' : '#50566A', 26, 12);
       const concrete = Nar3D.grainTexture(night ? '#2C3352' : '#ECE8E0', 10, 6);
       const white = mat('#F7F7F2', { roughness: 0.6 });
-      add(
-        new THREE.Mesh(new THREE.PlaneGeometry(84, 64), mat('#fff', { map: lawn, roughness: 1 })),
-        0,
-        -0.01,
-        0,
-        1,
-      );
-      [
-        [14, 14, 322, 212],
-        [414, 14, 332, 212],
-        [14, 298, 322, 248],
-        [414, 298, 332, 248],
-      ].forEach(([x, y, w, d]) =>
+      const asphM = mat('#fff', { map: asphalt, roughness: 0.9 });
+      add(plane(MW, MD, mat('#fff', { map: lawn, roughness: 1 })), 0, -0.01, 0, 1);
+      // давхцсан талбайн дээд тал анивчихгүйн тулд өндрийг бага зэрэг ялгана
+      LY.pads.forEach((p, i) =>
         add(
-          box(w / SC, 0.3, d / SC, mat('#fff', { map: concrete, roughness: 0.95 })),
-          px(x) + w / SC / 2,
-          0.15,
-          pz(y) + d / SC / 2,
+          box(p.w, 0.3 + i * 0.002, p.d, mat('#fff', { map: concrete, roughness: 0.95 })),
+          p.x + p.w / 2,
+          (0.3 + i * 0.002) / 2,
+          p.z + p.d / 2,
         ),
       );
-      // гол зам + төв зам
-      add(
-        new THREE.Mesh(
-          new THREE.PlaneGeometry(84, 4.8),
-          mat('#fff', { map: asphalt, roughness: 0.9 }),
-        ),
-        0,
-        0.02,
-        pz(260),
-        1,
+      // зам + голын тасархай зураас (уулзвар дээр тасарна)
+      const cross = [];
+      LY.roads.forEach((a) =>
+        LY.roads.forEach((b) => {
+          if (isH(a) && !isH(b)) cross.push({ x: b.x1, z: a.z1, hw: a.w, vw: b.w });
+        }),
       );
-      add(
-        new THREE.Mesh(
-          new THREE.PlaneGeometry(5, 64),
-          mat('#fff', { map: asphalt, roughness: 0.9 }),
-        ),
-        px(375),
-        0.025,
-        0,
-        1,
-      );
-      for (let i = 0; i < 23; i++) {
-        const x = -40 + i * 3.6;
-        if (Math.abs(x - px(375)) < 3.4) continue;
-        add(new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.16), white), x, 0.04, pz(260), 1);
-      }
-      for (let i = 0; i < 17; i++) {
-        const z = -30 + i * 3.6;
-        if (Math.abs(z - pz(260)) < 3.2) continue;
-        add(new THREE.Mesh(new THREE.PlaneGeometry(0.16, 1.6), white), px(375), 0.045, z, 1);
-      }
-      // явган хүний гарц (уулзварын 4 талд)
-      for (let k = 0; k < 6; k++) {
+      LY.roads.forEach((rd, i) => {
+        const h = isH(rd);
+        const len = h ? Math.abs(rd.x2 - rd.x1) : Math.abs(rd.z2 - rd.z1);
+        const cx0 = (rd.x1 + rd.x2) / 2,
+          cz0 = (rd.z1 + rd.z2) / 2;
+        add(plane(h ? len : rd.w, h ? rd.w : len, asphM), cx0, 0.02 + i * 0.004, cz0, 1);
+        const a0 = h ? Math.min(rd.x1, rd.x2) : Math.min(rd.z1, rd.z2);
+        for (let u = a0 + 1.8; u < a0 + len - 1; u += 3.6) {
+          const near = cross.some((c) =>
+            h ? Math.abs(u - c.x) < c.vw / 2 + 1 : Math.abs(u - c.z) < c.hw / 2 + 1,
+          );
+          if (near) continue;
+          if (h) add(plane(1.6, 0.16, white), u, 0.04 + i * 0.004, rd.z1, 1);
+          else add(plane(0.16, 1.6, white), rd.x1, 0.04 + i * 0.004, u, 1);
+        }
+      });
+      // явган хүний гарц (уулзвар бүрийн 4 талд)
+      cross.forEach((c) => {
+        for (let k = 0; k < 6; k++) {
+          const o = -1.9 + k * 0.75;
+          [-1, 1].forEach((sg) => {
+            add(plane(0.45, 2.2, white), c.x + o, 0.06, c.z + sg * (c.hw / 2 + 1.8), 1);
+            add(plane(2.2, 0.45, white), c.x + sg * (c.vw / 2 + 1.9), 0.06, c.z + o, 1);
+          });
+        }
+      });
+      // тоглоомын / спорт талбай
+      LY.parks.forEach((p) => {
+        const cx0 = p.x + p.w / 2,
+          cz0 = p.z + p.d / 2;
+        if (p.kind === 'sport') {
+          add(
+            box(p.w, 0.05, p.d, mat(night ? '#3A2F4A' : '#C8613F', { roughness: 0.9 })),
+            cx0,
+            0.33,
+            cz0,
+          );
+          const lw = mat('#F7F7F2');
+          [
+            [p.w - 1, 0.12, cx0, p.z + 0.5],
+            [p.w - 1, 0.12, cx0, p.z + p.d - 0.5],
+            [0.12, p.d - 1, p.x + 0.5, cz0],
+            [0.12, p.d - 1, p.x + p.w - 0.5, cz0],
+            [0.12, p.d - 1, cx0, cz0],
+          ].forEach(([w, d, x, z]) => add(plane(w, d, lw), x, 0.365, z, 1));
+          [-1, 1].forEach((sg) => {
+            const pole = box(0.15, 3, 0.15, mat('#3A3F48', { metalness: 0.5 }));
+            pole.castShadow = true;
+            add(pole, cx0 + sg * (p.w / 2 - 0.4), 1.8, cz0);
+            add(
+              box(0.08, 0.9, 1.4, mat('#F7F7F2')),
+              cx0 + sg * (p.w / 2 - 0.6),
+              3.2,
+              cz0,
+            ).castShadow = true;
+          });
+          return;
+        }
+        add(box(p.w, 0.05, p.d, mat(night ? '#21392F' : '#B7D39A')), cx0, 0.32, cz0);
         add(
-          new THREE.Mesh(new THREE.PlaneGeometry(0.45, 2.2), white),
-          px(375) - 1.9 + k * 0.75,
-          0.046,
-          pz(260) - 4.2,
-          1,
+          box(p.w * 0.48, 0.1, p.d * 0.38, mat(night ? '#5A3A3A' : '#E39A6C', { roughness: 0.95 })),
+          p.x + p.w * 0.35,
+          0.4,
+          p.z + p.d * 0.31,
         );
         add(
-          new THREE.Mesh(new THREE.PlaneGeometry(0.45, 2.2), white),
-          px(375) - 1.9 + k * 0.75,
-          0.046,
-          pz(260) + 4.2,
-          1,
-        );
+          box(1.2, 1.8, 3, mat('#F5D130', { roughness: 0.5 })),
+          p.x + p.w * 0.2,
+          1.2,
+          p.z + p.d * 0.27,
+        ).castShadow = true;
         add(
-          new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.45), white),
-          px(375) - 4.4,
-          0.046,
-          pz(260) - 1.9 + k * 0.75,
-          1,
-        );
+          box(3.4, 0.4, 0.8, mat('#E85A4F', { roughness: 0.5 })),
+          p.x + p.w * 0.4,
+          1.6,
+          p.z + p.d * 0.26,
+        ).castShadow = true;
+        const pr = Math.min(p.w, p.d) * 0.13;
         add(
-          new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.45), white),
-          px(375) + 4.4,
-          0.046,
-          pz(260) - 1.9 + k * 0.75,
-          1,
+          new THREE.Mesh(
+            new THREE.CylinderGeometry(pr, pr, 0.3, 32),
+            mat('#5FB8D6', {
+              emissive: '#5FB8D6',
+              emissiveIntensity: 0.3,
+              roughness: 0.1,
+              metalness: 0.2,
+            }),
+          ),
+          p.x + p.w * 0.79,
+          0.45,
+          p.z + p.d * 0.73,
         );
-      }
-      // тоглоомын талбай
-      add(
-        box(19, 0.05, 16.8, mat(night ? '#21392F' : '#B7D39A')),
-        px(540) + 9.5,
-        0.32,
-        pz(40) + 8.4,
-      );
-      add(
-        box(9.2, 0.1, 6.4, mat(night ? '#5A3A3A' : '#E39A6C', { roughness: 0.95 })),
-        px(560) + 4.6,
-        0.4,
-        pz(60) + 3.2,
-      );
-      add(box(1.2, 1.8, 3, mat('#F5D130', { roughness: 0.5 })), px(578), 1.2, pz(85)).castShadow =
-        true;
-      add(box(3.4, 0.4, 0.8, mat('#E85A4F', { roughness: 0.5 })), px(616), 1.6, pz(84)).castShadow =
-        true;
-      add(
-        new THREE.Mesh(
-          new THREE.CylinderGeometry(2.2, 2.2, 0.3, 32),
-          mat('#5FB8D6', {
-            emissive: '#5FB8D6',
-            emissiveIntensity: 0.3,
-            roughness: 0.1,
-            metalness: 0.2,
-          }),
-        ),
-        px(690),
-        0.45,
-        pz(162),
-      );
+      });
       // зогсоолын талбай: асфальт, хашлага (median), зураас
-      add(box(30.8, 0.06, 14.5, mat('#fff', { map: asphalt, roughness: 0.9 })), 20, 0.33, 18.55);
-      add(box(30.4, 0.12, 0.3, mat(night ? '#2F4A3A' : '#8DBA6F')), 20, 0.37, 18.55);
-      for (let c = 0; c <= 12; c++) {
-        const x = 5 + c * 2.5;
-        [12.8, 17.2, 19.9, 24.3].forEach((z) =>
-          add(new THREE.Mesh(new THREE.PlaneGeometry(0.08, 2.2), white), x, 0.37, z, 1),
-        );
-      }
+      LY.lots.forEach((l) => {
+        const { w, d } = Layout.lotSize(l);
+        add(box(w, 0.06, d, asphM), l.x + w / 2, 0.33, l.z + d / 2);
+        for (let u = 0; u < l.aisles - 1; u++)
+          add(
+            box(w - 0.4, 0.12, 0.3, mat(night ? '#2F4A3A' : '#8DBA6F')),
+            l.x + w / 2,
+            0.37,
+            l.z + 1.5 + u * 7.1 + 4.4 + 1.35,
+          );
+        for (let r = 0; r < l.aisles * 2; r++) {
+          const z = l.z + 1.5 + Math.floor(r / 2) * 7.1 + (r % 2) * 4.4;
+          for (let c = 0; c <= l.cols; c++)
+            add(plane(0.08, 2.2, white), l.x + 0.4 + c * Layout.SPOT_W, 0.37, z, 1);
+        }
+      });
     }
 
     function buildBuildings(s) {
@@ -819,7 +811,7 @@
       alarm = [];
       const leakB = new Set(s.leaks.filter((x) => x.st !== 'fixed').map((x) => x.b));
       const night = s.night;
-      D.BUILDINGS.forEach((b, i) => {
+      D_B.forEach((b, i) => {
         const L = s.units[b.n - 1] || [];
         const paid = L.length ? L.filter((u) => u.st === 0).length / L.length : 0.9;
         let color = night ? '#59648A' : WALLS[i % WALLS.length],
@@ -842,8 +834,8 @@
         }
         const sel = s.selB === i;
         const h = b.fl * FLOOR_H + 0.6,
-          w = b.w / SC,
-          d = b.d / SC;
+          w = b.w,
+          d = b.d;
         const wall = sel ? '#F4C536' : color;
         const tx = facadeTexture(night, wall),
           tz = facadeTexture(night, wall);
@@ -860,7 +852,7 @@
           });
         const roofM = mat(night ? '#2E3555' : shade(wall, -0.18), { roughness: 0.9 });
         const g = new THREE.Group();
-        g.position.set(px(b.x) + w / 2, 0.3, pz(b.y) + d / 2);
+        g.position.set(b.x + w / 2, 0.3, b.z + d / 2);
         g.userData.click = ['b', i];
         const geo = new THREE.BoxGeometry(w, h, d);
         geo.translate(0, h / 2, 0);
@@ -911,24 +903,25 @@
           sp.rotation.x = -0.35;
           g.add(sp);
         }
-        // орцны саравч + гэрэлтэй хаалга (зам руу харсан талд)
-        const north = b.y < 260;
-        const fz = north ? d / 2 : -d / 2;
-        const can = box(2.6, 0.12, 1.3, mat('#F2F2EE', { roughness: 0.4 }));
-        can.position.set(0, 1.5, fz + (north ? 0.85 : -0.85));
+        // орцны саравч + гэрэлтэй хаалга (layout-ын door тал руу)
+        const [dx, dz] = DOOR[b.door] || DOOR.s;
+        const ox = (dx * w) / 2,
+          oz = (dz * d) / 2;
+        const can = box(dx ? 1.3 : 2.6, 0.12, dx ? 2.6 : 1.3, mat('#F2F2EE', { roughness: 0.4 }));
+        can.position.set(ox + dx * 0.85, 1.5, oz + dz * 0.85);
         can.castShadow = true;
         g.add(can);
         const door = new THREE.Mesh(
           new THREE.PlaneGeometry(1.4, 1.1),
           mat('#FFE7B0', { emissive: '#FFD27A', emissiveIntensity: night ? 1.4 : 0.35 }),
         );
-        door.position.set(0, 0.62, fz + (north ? 0.21 : -0.21));
-        if (!north) door.rotation.y = Math.PI;
+        door.position.set(ox + dx * 0.21, 0.62, oz + dz * 0.21);
+        door.rotation.y = Math.atan2(dx, dz);
         g.add(door);
         if (s.mode === 'leak' && leakB.has(b.n)) {
           alarm.push(m);
           const pl = new THREE.PointLight('#FF5A4E', 30, 14);
-          pl.position.set(0, h / 2, d / 2 + 1);
+          pl.position.set(ox + dx, h / 2, oz + dz);
           g.add(pl);
         }
         blds.add(g);
@@ -948,12 +941,22 @@
       refreshClickables();
     }
 
+    /** Гэрлийн шонгийн гар хамгийн ойрын зам руу харна */
+    function nearRoad(x, z) {
+      let best = null,
+        bd = 1e9;
+      LY.roads.forEach((rd) => {
+        const d = isH(rd) ? Math.abs(z - rd.z1) : Math.abs(x - rd.x1);
+        if (d < bd) [bd, best] = [d, rd];
+      });
+      return best;
+    }
     function buildLights(s) {
       B.clear(lightsG);
       bulbs = [];
       s.lights.forEach((l) => {
-        const x = px(l.x),
-          z = pz(l.y);
+        const x = l.x,
+          z = l.z;
         const g = new THREE.Group();
         g.position.set(x, 0.3, z);
         g.userData.click = ['l', l.id];
@@ -962,9 +965,9 @@
         pole.position.y = 1.7;
         pole.castShadow = true;
         g.add(pole);
-        // гар нь хамгийн ойрын зам руу харна
-        const toMain = Math.abs(z - pz(260)) < Math.abs(x - px(375));
-        const dir = toMain ? Math.sign(pz(260) - z) || 1 : Math.sign(px(375) - x) || 1;
+        const rd = nearRoad(x, z);
+        const toMain = !rd || isH(rd);
+        const dir = !rd ? 1 : toMain ? Math.sign(rd.z1 - z) || 1 : Math.sign(rd.x1 - x) || 1;
         const arm = box(toMain ? 0.06 : 0.9, 0.06, toMain ? 0.9 : 0.06, poleM);
         arm.position.set(toMain ? 0 : dir * 0.45, 3.35, toMain ? dir * 0.45 : 0);
         g.add(arm);
@@ -1049,19 +1052,20 @@
         buildLights(s);
       }
       prev.night = night;
-      // зогсоол — "Зогсоол" хуудастай ижил өгөгдөл
+      // зогсоол — "Зогсоол" хуудастай ижил өгөгдөл; layout-ын зогсоол бүрт дарааллаар хуваарилна
       if (s.slots) {
-        const list = s.slots.filter((x) => x.zone === 'p');
-        list.forEach((sl, i) => {
-          const r = Math.floor(i / 12) % 4,
-            c = i % 12;
-          spots[sl.id] = { x: 6.25 + c * 2.5, z: LOT_ROWS[r], az: LOT_AISLE[r < 2 ? 0 : 1] };
+        const all = s.slots.filter((x) => x.zone === 'p');
+        let off = 0;
+        lots.forEach((o) => {
+          const list = all.slice(off, off + o.l.n);
+          off += o.l.n;
+          list.forEach((sl, i) => (o.spots[sl.id] = o.pos[i]));
+          o.ctl.sync(list, lotInit);
         });
-        lot.sync(list, lotInit);
         lotInit = true;
       }
       // хөтөч — төлбөр төлөөгүй айлтай байрнууд
-      debtInfo = D.BUILDINGS.map((b, i) => {
+      debtInfo = D_B.map((b, i) => {
         const L = (s.units[b.n - 1] || []).filter((u) => u.st !== 0);
         return { i, n: L.length, amt: L.reduce((a, u) => a + u.amt + u.prev, 0) };
       });
@@ -1073,7 +1077,7 @@
         showInfo(night);
       } else if (G.mode === 'show') showInfo(night);
     }
-    return { update };
+    return { update, dispose: B.dispose };
   }
 
   /* ======================================================================
@@ -1082,10 +1086,26 @@
   function parking(host, opts) {
     const zone = opts.zone || 'p';
     const garage = zone === 'g';
-    const B = Nar3D.stage(host, [40, 62, 72], {
+    // зогсоолын тоо хотхоноос хамаарна → багана, талбайн өргөн, камер үүнээс
+    const count = garage ? D.LAYOUT.garage : Layout.slots(D.LAYOUT);
+    // гадна зогсоол нь хотхоны map дээрх зогсоолтой яг ижил эгнээ, багана, дараалалтай
+    const lotL = !garage && D.LAYOUT.lots[0];
+    const U = lotL ? lotL.aisles : 2; // эгнээ (хоёр талдаа зогсоолтой)
+    const rows = U * 2;
+    const cols = Math.max(lotL ? lotL.cols : 4, Math.ceil(count / rows)),
+      sw = garage ? 5.4 : 4.6,
+      sd = garage ? 7.2 : 6.6;
+    const gr = garage ? 14 : 13; // эгнээний хоёр талын зогсоолын хоорондох зай
+    const total = (U - 1) * 24 + gr + sd;
+    const rowsZ = [];
+    for (let u = 0; u < U; u++) rowsZ.push(-total / 2 + u * 24, -total / 2 + u * 24 + gr);
+    const FW = cols * sw + 19, // шалны өргөн
+      FD = total + 12.4; // шалны гүн
+    const K = Math.max(1, FW / 74, FD / 56);
+    const B = Nar3D.stage(host, [40 * K, 62 * K, 72 * K], {
       target: [0, 0, 0],
       min: 40,
-      max: 190,
+      max: 190 * K,
       maxPolar: Math.PI / 2.3,
       narrow: 2.05,
     });
@@ -1102,7 +1122,7 @@
             [1, '#F1EEE6'],
           ],
     );
-    scene.fog = new THREE.Fog(garage ? '#2E333B' : '#E9EEF0', 130, 280);
+    scene.fog = new THREE.Fog(garage ? '#2E333B' : '#E9EEF0', 130 * K, 280 * K);
     scene.add(
       new THREE.HemisphereLight('#fff', garage ? '#22262C' : '#C9BFA8', garage ? 0.6 : 0.9),
     );
@@ -1111,14 +1131,17 @@
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0004;
-    Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40 });
+    const SH = Math.max(40, FW / 2 + 4),
+      SV = Math.max(40, FD / 2 + 4);
+    Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SV, bottom: -SV });
     scene.add(sun);
-    const cols = garage ? 10 : 12,
-      sw = garage ? 5.4 : 4.6,
-      sd = garage ? 7.2 : 6.6;
-    const rowsZ = garage ? [-20, -6, 4, 18] : [-21, -8, 3, 16];
     const x0 = -(cols * sw) / 2;
-    const aisleZ = [(rowsZ[0] + sd + rowsZ[1]) / 2, (rowsZ[2] + sd + rowsZ[3]) / 2];
+    const aisleZ = [],
+      midsZ = []; // эгнээ бүрийн төв, эгнээ хоорондын хашлага
+    for (let u = 0; u < U; u++) {
+      aisleZ.push((rowsZ[2 * u] + sd + rowsZ[2 * u + 1]) / 2);
+      if (u < U - 1) midsZ.push((rowsZ[2 * u + 1] + sd + rowsZ[2 * u + 2]) / 2);
+    }
     const add = (m, x, y, z, flat) => {
       m.position.set(x, y, z);
       if (flat) m.rotation.x = -Math.PI / 2;
@@ -1129,7 +1152,7 @@
     const floorTex = Nar3D.grainTexture(garage ? '#878B92' : '#5E636D', 24, 10);
     add(
       new THREE.Mesh(
-        new THREE.PlaneGeometry(74, 56),
+        new THREE.PlaneGeometry(FW, FD),
         mat('#fff', { map: floorTex, roughness: 0.92 }),
       ),
       0,
@@ -1160,30 +1183,30 @@
       }
     });
     aisleZ.forEach((z) => {
-      for (let k = 0; k < 18; k++)
+      for (let k = 0; k < Math.floor((FW - 4) / 4); k++)
         add(
           new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.2), garage ? yellowM : lineM),
-          -34 + k * 4,
+          -FW / 2 + 3 + k * 4,
           0.012,
           z,
           1,
         );
       // гарц — "P" самбар, хаалт
       const post = box(0.25, 2.2, 0.25, mat('#3A3F48', { metalness: 0.5, roughness: 0.4 }));
-      post.position.set(-36.2, 1.1, z - 2.4);
+      post.position.set(x0 - 8.6, 1.1, z - 2.4);
       post.castShadow = true;
       scene.add(post);
       const bar = box(0.12, 0.12, 4.2, mat('#E0525A'));
-      bar.position.set(-36.2, 2.15, z - 0.3);
+      bar.position.set(x0 - 8.6, 2.15, z - 0.3);
       bar.rotation.x = -1.2; // өргөгдсөн (нээлттэй) хаалт
       scene.add(bar);
     });
     if (garage) {
       const wallM = mat('#B9BDC3', { roughness: 0.85 });
       [
-        [0, -27.5, 74, 1],
-        [0, 27.5, 74, 1],
-        [36.5, 0, 1, 56],
+        [0, -FD / 2 + 0.5, FW, 1],
+        [0, FD / 2 - 0.5, FW, 1],
+        [FW / 2 - 0.5, 0, 1, FD],
       ].forEach(([x, z, w, d]) => {
         const m = box(w, 3.6, d, wallM);
         m.position.set(x, 1.8, z);
@@ -1193,10 +1216,12 @@
         st.position.set(x, 0.2, z);
         scene.add(st);
       });
-      const mid = box(58, 2.8, 1, mat('#A5AAB1', { roughness: 0.85 }));
-      mid.position.set(0, 1.4, (rowsZ[1] + sd + rowsZ[2]) / 2);
-      mid.castShadow = true;
-      scene.add(mid);
+      midsZ.forEach((z) => {
+        const mid = box(cols * sw + 3, 2.8, 1, mat('#A5AAB1', { roughness: 0.85 }));
+        mid.position.set(0, 1.4, z);
+        mid.castShadow = true;
+        scene.add(mid);
+      });
       rowsZ.forEach((z, r) => {
         for (let k = 0; k <= cols / 2; k++) {
           const p = box(0.8, 4.4, 0.8, mat('#C9CDD2', { roughness: 0.8 }));
@@ -1206,31 +1231,32 @@
         }
       });
       aisleZ.forEach((z) => {
-        for (let k = 0; k < 5; k++) {
+        const nl = Math.max(2, Math.round((cols * sw) / 13));
+        for (let k = 0; k < nl; k++) {
           const pl = new THREE.PointLight('#DDE8FF', 14, 18);
-          pl.position.set(-26 + k * 13, 4.2, z);
+          pl.position.set(x0 + 2 + (k * (cols * sw - 4)) / (nl - 1), 4.2, z);
           scene.add(pl);
         }
       });
-    } else {
-      const midZ = (rowsZ[1] + sd + rowsZ[2]) / 2;
-      const m = box(60, 0.5, 2.2, mat('#9CC47C', { roughness: 0.95 }));
-      m.position.set(0, 0.25, midZ);
-      m.receiveShadow = true;
-      scene.add(m);
-      for (let k = 0; k < 7; k++) {
-        const x = -27 + k * 9;
-        const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1, 6), mat('#6E5038'));
-        tr.position.set(x, 1, midZ);
-        const top = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(0.95, 1),
-          mat(k % 2 ? '#6DB054' : '#5C9E48', { flatShading: true }),
-        );
-        top.position.set(x, 2.1, midZ);
-        tr.castShadow = top.castShadow = true;
-        scene.add(tr, top);
-      }
-    }
+    } else
+      midsZ.forEach((midZ) => {
+        const m = box(cols * sw + 5, 0.5, 2.2, mat('#9CC47C', { roughness: 0.95 }));
+        m.position.set(0, 0.25, midZ);
+        m.receiveShadow = true;
+        scene.add(m);
+        for (let k = 0; k < Math.floor((cols * sw) / 9) + 1; k++) {
+          const x = x0 + 0.6 + k * 9;
+          const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1, 6), mat('#6E5038'));
+          tr.position.set(x, 1, midZ);
+          const top = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.95, 1),
+            mat(k % 2 ? '#6DB054' : '#5C9E48', { flatShading: true }),
+          );
+          top.position.set(x, 2.1, midZ);
+          tr.castShadow = top.castShadow = true;
+          scene.add(tr, top);
+        }
+      });
 
     const spots = {},
       dots = {},
@@ -1243,8 +1269,8 @@
       padY: 0.02,
       opacity: 0.5,
       carScale: garage ? 1.15 : 1.05,
-      ex: -40,
-      xx: -40, // гарц зүүн талд — хотхоны map дээрхтэй адил нэг хаалгаар орж, гарна
+      ex: x0 - 12.4,
+      xx: x0 - 12.4, // гарц зүүн талд — хотхоны map дээрхтэй адил нэг хаалгаар орж, гарна
       click: true,
       onPaint: (id, stt) => {
         const dm = dots[id];
@@ -1286,13 +1312,13 @@
       cur = s;
       const list = s.slots.filter((x) => x.zone === zone);
       list.forEach((sl, i) => {
-        const r = Math.floor(i / cols) % 4,
+        const r = Math.floor(i / cols) % rows,
           c = i % cols,
           top = r % 2 === 0;
         const x = x0 + c * sw + sw / 2,
           z = rowsZ[r] + sd / 2;
         if (!spots[sl.id]) {
-          spots[sl.id] = { x, z, az: aisleZ[r < 2 ? 0 : 1], top };
+          spots[sl.id] = { x, z, az: aisleZ[Math.floor(r / 2)], top };
           const dm = mat('#3DDC84', { emissive: '#3DDC84', emissiveIntensity: 1.4 });
           const dot = new THREE.Mesh(dotGeo, dm);
           dot.position.set(x, 0.14, top ? z + sd / 2 - 0.5 : z - sd / 2 + 0.5);

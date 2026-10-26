@@ -4,15 +4,17 @@
   const { ic, seg, switchBtn, prio } = Shell;
   const { money, nf, ago, REQ_STATUS, BUILDINGS } = D;
   const SLA_DEF = 60;
+  const NB = BUILDINGS.length;
+  const BN = BUILDINGS.map((b) => b.n);
   const ui = {
-    leakB: 5,
+    leakB: Math.min(5, NB),
     mode: 'light',
     night: false,
     selB: null,
     selL: 'L07',
     zone: 'p',
     selSlot: null,
-    b: 5,
+    b: Math.min(5, NB),
     unit: 34,
     q: '',
     payTab: 'debt',
@@ -297,7 +299,7 @@
           </div>
           <div class="flex wrap g2 ic">
             <div class="seg dark-seg">
-              ${[1, 2, 3, 4, 5, 6].map(
+              ${BN.map(
                 (n) =>
                   html`<button class="${b === n ? 'on' : ''}" data-act="leakB" data-arg="${n}">
                     ${n}-р${leaks.some((x) => x.b === n && x.st !== 'fixed')
@@ -333,7 +335,9 @@
                 >${ic('droplet', 20)}</span
               >
               <div class="grow">
-                <b class="block">${x.b}-р байр · ${Math.ceil(x.u / 13)}-р давхар · ${x.u} тоот</b
+                <b class="block"
+                  >${x.b}-р байр · ${Math.ceil(x.u / BUILDINGS[x.b - 1].per)}-р давхар · ${x.u}
+                  тоот</b
                 ><span class="muted t12">${x.id} · ${x.room}</span>
               </div>
               <span class="${'chip ' + LTONE[x.st]}">${LNAME[x.st]}</span>
@@ -416,7 +420,7 @@
       <section class="card p0 ovh map-box">
         ${Nar.keep('complex3d', 'fill')}
         <div class="map-title">
-          <b class="${cx('t24 b9', ui.night && 'night')}">Нарны хотхон</b>
+          <b class="${cx('t24 b9', ui.night && 'night')}">${D.LAYOUT.n}</b>
           <p class="t12 b sm-up" style="color:#7A7365">
             Чирж эргүүлнэ · scroll-оор томруулна · байр дээр дарвал хөтөч тийш дагуулна
           </p>
@@ -995,12 +999,14 @@
           )
           .slice(0, 8)
       : [];
-    const floors = Array.from({ length: 16 }, (_, i) => 16 - i);
+    const BB = BUILDINGS[ui.b - 1];
+    const nf0 = Math.ceil(BB.units / BB.per);
+    const floors = Array.from({ length: nf0 }, (_, i) => nf0 - i);
     return html`<div class="cols c1 xl-side" style="--sw:360px">
       <section class="card pad col g3">
         <div class="flex wrap g2 jb ic">
           ${seg(
-            [1, 2, 3, 4, 5, 6].map((n) => [n, n + '-р байр']),
+            BN.map((n) => [n, n + '-р байр']),
             ui.b,
             'resB',
           )}
@@ -1029,7 +1035,7 @@
             </div>`
           : ''}
         <div class="ovx">
-          <div class="floors">
+          <div class="floors" style="${'--per:' + BB.per}">
             ${floors.map(
               (f) =>
                 html`<div class="flex ic g2">
@@ -1088,6 +1094,9 @@
   const SLT = ['c-ok', 'c-mute', 'c-warn', 'c-acc'];
   const parkScenes = {};
   function parking() {
+    const nP = Layout.slots(D.LAYOUT),
+      nG = D.LAYOUT.garage;
+    if (!nG) ui.zone = 'p';
     const z = st().slots.filter((s) => s.zone === ui.zone);
     const n = (k) => z.filter((s) => s.st === k).length;
     const cur = ui.selSlot ? st().slots.find((s) => s.id === ui.selSlot) : null;
@@ -1095,9 +1104,9 @@
       <div class="flex wrap g2 jb ic">
         ${seg(
           [
-            ['p', 'Гадна зогсоол P01–P48'],
-            ['g', 'Газар доорх гараж G01–G40'],
-          ],
+            ['p', 'Гадна зогсоол · ' + nP + ' байр'],
+            nG ? ['g', 'Газар доорх гараж · ' + nG + ' байр'] : null,
+          ].filter(Boolean),
           ui.zone,
           'zone',
         )}
@@ -1296,11 +1305,588 @@
     </div>`;
   }
 
+  /* ------------------------- Хотхоны бүтэц (layout model) ------------------------- */
+  // Хотхоноо үгээр тайлбарлахад model (Layout.parse → Layout.generate) map, зогсоолыг зохион байгуулна.
+  // Админ зөвхөн өөрийн хотхоны (D.LAYOUT.id) map-ыг харж, засна — бусад хотхонд хүрэхгүй.
+  const LY_EX = [
+    '8 байр, 12-20 давхар, 60 зогсоол, тоглоомын талбай, гараж 30',
+    '12 байр, 16 давхар, 96 машины зогсоол, спорт талбай, газар доорх гараж 80',
+    '4 байр нэг эгнээ, 9 давхар, давхартаа 6 айл, 24 зогсоол',
+    '5 bair 20-24 davhar 40 zogsool togloomyn talbai',
+  ];
+  const DOORS = [
+    ['n', 'Хойд'],
+    ['s', 'Урд'],
+    ['w', 'Баруун'],
+    ['e', 'Зүүн'],
+  ];
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  /** Хотхоны таних мэдээлэл (id, нэр, дүүрэг, өнгө) үргэлж өөрийнх хэвээр үлдэнэ */
+  const own = (L) =>
+    Object.assign(L, {
+      id: D.LAYOUT.id,
+      n: D.LAYOUT.n,
+      sokh: D.LAYOUT.sokh,
+      d: D.LAYOUT.d,
+      c: D.LAYOUT.c,
+    });
+  const lyState = () =>
+    ui.ly || (ui.ly = { text: '', L: clone(D.LAYOUT), got: [], sel: null, saved: true });
+  const lySpec = () => Object.assign({}, Layout.DEF, lyState().L.spec || {});
+  /** spec-ийн нэг утгыг өөрчлөөд map-ыг дахин үүсгэнэ (id, нэр, өнгө хадгалагдана) */
+  function lyRegen(patch) {
+    const y = lyState();
+    const sp = Object.assign(lySpec(), { manual: false }, patch);
+    sp.floors = [Math.min(sp.floors[0], sp.floors[1]), Math.max(sp.floors[0], sp.floors[1])];
+    y.L = own(Layout.generate(sp));
+    y.sel = null;
+    y.saved = false;
+    set({});
+  }
+  /* ---------- Builder: 2D дээр чирж зөөх, palette-аас чирж нэмэх, 3D preview ---------- */
+  const LY_PAL = [
+    ['b', 'Байр', 'building'],
+    ['lot', 'Зогсоол', 'car'],
+    ['play', 'Тоглоомын талбай', 'party'],
+    ['sport', 'Спорт талбай', 'star'],
+  ];
+  /** дэлгэцийн цэгийг SVG (map) координат руу */
+  const lyPt = (svg, e) => {
+    const p = svg.createSVGPoint();
+    p.x = e.clientX;
+    p.y = e.clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  let lyDrag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest && e.target.closest('.ly-svg [data-drag]');
+    if (!g || !ui.ly) return;
+    const svg = g.ownerSVGElement,
+      o = Layout.itemOf(ui.ly.L, g.dataset.drag);
+    if (!o) return;
+    lyDrag = {
+      key: g.dataset.drag,
+      g,
+      svg,
+      p0: lyPt(svg, e),
+      o,
+      dx: 0,
+      dz: 0,
+      moved: false,
+      id: e.pointerId,
+    };
+    try {
+      svg.setPointerCapture(e.pointerId);
+    } catch (err) {} // зарим төхөөрөмж дэмжихгүй
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove', (e) => {
+    const d = lyDrag;
+    if (!d || e.pointerId !== d.id) return;
+    const p = lyPt(d.svg, e);
+    d.dx = Math.round((p.x - d.p0.x) * 2) / 2;
+    d.dz = Math.round((p.y - d.p0.y) * 2) / 2;
+    if (Math.hypot(d.dx, d.dz) > 0.4) d.moved = true;
+    if (!d.moved) return;
+    // чирж байх үед DOM-ыг шууд хөдөлгөнө (дахин зурахгүй) — давхцвал улаан
+    d.g.setAttribute('transform', 'translate(' + d.dx + ' ' + d.dz + ')');
+    d.g.classList.add('drag');
+    d.g.classList.toggle('bad', !Layout.canPlace(ui.ly.L, d.key, d.o.r.x + d.dx, d.o.r.z + d.dz));
+  });
+  const lyDrop = (e, cancel) => {
+    const d = lyDrag;
+    if (!d || e.pointerId !== d.id) return;
+    lyDrag = null;
+    const y = lyState();
+    d.g.removeAttribute('transform');
+    d.g.classList.remove('drag', 'bad');
+    if (cancel) return;
+    if (!d.moved) {
+      y.sel = y.sel === d.key ? null : d.key;
+      return set({});
+    }
+    const r = Layout.moveItem(y.L, d.key, d.o.r.x + d.dx, d.o.r.z + d.dz);
+    if (!r.ok) S.toast('Зөөх боломжгүй', r.msg, 'warn');
+    else {
+      y.saved = false;
+      y.sel = d.key;
+    }
+    set({});
+  };
+  document.addEventListener('pointerup', (e) => lyDrop(e));
+  document.addEventListener('pointercancel', (e) => lyDrop(e, true));
+  // palette → map руу чирж нэмэх (HTML5 drag & drop)
+  document.addEventListener('dragstart', (e) => {
+    const b = e.target.closest && e.target.closest('[data-add]');
+    if (!b) return;
+    e.dataTransfer.setData('text/plain', 'ly:' + b.dataset.add);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+  document.addEventListener('dragover', (e) => {
+    if (e.target.closest && e.target.closest('.ly-box')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  });
+  document.addEventListener('drop', (e) => {
+    const box = e.target.closest && e.target.closest('.ly-box');
+    const t = e.dataTransfer.getData('text/plain');
+    if (!box || !t.startsWith('ly:')) return;
+    e.preventDefault();
+    const p = lyPt(box.querySelector('svg'), e);
+    lyAddAt(t.slice(3), p.x, p.y);
+  });
+  function lyAddAt(kind, x, z) {
+    const y = lyState();
+    const r = Layout.addItem(y.L, kind, x, z);
+    if (!r.ok) return S.toast('Нэмэх боломжгүй', r.msg, 'warn');
+    y.sel = r.key;
+    y.saved = false;
+    set({});
+    S.toast('Map засагдлаа', r.msg, 'ok');
+  }
+  /** Сонгосон объект дээр builder үйлдэл (эргүүлэх, устгах, зогсоолын тоо) */
+  function lyItem(fn) {
+    const y = lyState();
+    if (!y.sel) return;
+    const r = fn(y.L, y.sel);
+    if (r && r.ok === false) return S.toast('Боломжгүй', r.msg || '', 'warn');
+    y.saved = false;
+    set({});
+  }
+
+  /* 3D preview — засаж буй layout-ыг жинхэнэ 3D map-аар харуулна */
+  let ly3 = null,
+    ly3key = '',
+    ly3state = null;
+  function lyPreviewState(L) {
+    const r = Layout.rng(7);
+    const n = Layout.slots(L);
+    return {
+      lights: L.lights.map((l, i) => ({ ...l, id: 'L' + i, st: 'on' })),
+      leaks: [],
+      units: L.buildings.map((b) =>
+        Array.from({ length: b.units }, () => ({ st: r() < 0.85 ? 0 : 2, amt: 90000, prev: 0 })),
+      ),
+      slots: Array.from({ length: n }, (_, i) => ({
+        id: 'P' + i,
+        zone: 'p',
+        st: r() < 0.6 ? 1 : 0,
+        color: D.CAR_COLORS[i % D.CAR_COLORS.length],
+        sens: 'ok',
+      })),
+      mode: 'light',
+      night: false,
+      selLight: null,
+    };
+  }
+  function lyAfter() {
+    const y = ui.ly;
+    if (!y || y.view !== '3d') return;
+    const key = JSON.stringify(y.L);
+    if (!ly3 || key !== ly3key) {
+      ly3key = key;
+      if (ly3) ly3.dispose(); // хуучин WebGL-ийг чөлөөлнө
+      const host = Nar.host('ly3d');
+      host.innerHTML = '';
+      ly3state = lyPreviewState(y.L);
+      ly3 = Scenes.complex(host, {
+        layout: y.L,
+        onSelectB: (i) => {
+          y.sel = i == null ? null : 'b:' + i;
+          set({});
+        },
+        onSelectLight: () => {},
+      });
+    }
+    const o = y.sel && y.sel.startsWith('b:') ? Number(y.sel.slice(2)) : null;
+    ly3.update({ ...ly3state, selB: o });
+  }
+
+  /** Одоогийн map дээр хэсэгчилсэн засвар хийнэ (Layout.setSlots гэх мэт) */
+  function lyEditMap(fn) {
+    const y = lyState();
+    const r = fn(y.L);
+    y.sel = null;
+    y.saved = false;
+    set({});
+    if (r && r.msg) S.toast(r.ok ? 'Map засагдлаа' : 'Анхааруулга', r.msg, r.ok ? 'ok' : 'warn');
+  }
+  function layoutView() {
+    const y = lyState();
+    const L = y.L;
+    const sp = lySpec();
+    if (!y.view) y.view = '2d';
+    const O = y.sel ? Layout.itemOf(L, y.sel) : null;
+    const edited = Layout.isEdited(L.id);
+    const manual = L.spec && L.spec.manual;
+    const hasPark = (k) => L.parks.some((p) => p.kind === k);
+    const num = (k, v, min, max, lbl) =>
+      html`<label class="field"
+        >${lbl}<input
+          class="inp num"
+          type="number"
+          min="${min}"
+          max="${max}"
+          value="${v}"
+          data-change="lyNum"
+          data-k="${k}"
+      /></label>`;
+    const stat = [
+      ['Байр', L.buildings.length],
+      ['Айл', nf(Layout.units(L))],
+      ['Зогсоол', Layout.slots(L)],
+      ['Гараж', L.garage || '—'],
+      ['Гэрэл', L.lights.length],
+      ['Мод', L.trees.length],
+    ];
+    return html`<div class="col g4">
+      <div class="cols c1 xl-side" style="--sw:400px">
+        <section class="card p4 col g3">
+          <div class="flex wrap g2 jb ic">
+            <div>
+              <b class="t20 b9">${L.n}</b>
+              <p class="muted t12">
+                ${L.d ? L.d + ' дүүрэг · ' : ''}${L.size[0] * 10}×${L.size[1] * 10} м ·
+                ${manual ? 'гараар зурсан map' : 'model үүсгэсэн map'}
+                ${y.saved ? '' : ' · хадгалаагүй өөрчлөлттэй'}
+              </p>
+            </div>
+            <div class="flex wrap g1">
+              ${stat.map(
+                ([k, v]) => html`<span class="chip c-mute">${k} · <b class="num">${v}</b></span>`,
+              )}
+            </div>
+          </div>
+          <div class="flex wrap g2 jb ic">
+            <div class="flex wrap g1">
+              ${LY_PAL.map(
+                ([k, l, icn]) =>
+                  html`<button
+                    class="ly-pal"
+                    draggable="true"
+                    data-add="${k}"
+                    data-act="lyAdd"
+                    data-arg="${k}"
+                    title="Map руу чирж тавина, эсвэл дарахад хоосон газар автоматаар нэмэгдэнэ"
+                  >
+                    ${ic(icn, 15)}${l}
+                  </button>`,
+              )}
+            </div>
+            ${seg(
+              [
+                ['2d', '2D · засах'],
+                ['3d', '3D · харах'],
+              ],
+              y.view,
+              'lyView',
+            )}
+          </div>
+          ${y.view === '3d'
+            ? html`<div class="ly-3d card p0 ovh">${Nar.keep('ly3d', 'fill')}</div>`
+            : html`<div class="ly-box">${Nar.raw(Layout.svg(L, { drag: true, sel: y.sel }))}</div>`}
+          <div class="flex wrap g3 t12 muted">
+            <span><i class="ly-sw b"></i>Байр (тоо = дугаар, д = давхар)</span>
+            <span><i class="ly-sw door"></i>Орц</span>
+            <span><i class="ly-sw road"></i>Зам</span>
+            <span><i class="ly-sw lot"></i>Зогсоол</span>
+            <span><i class="ly-sw play"></i>Тоглоом / спорт</span>
+            <span><i class="ly-sw light"></i>Гэрэл</span>
+          </div>
+          ${O
+            ? html`<div class="soft-box p3 col g2 view-in">
+                <div class="flex jb ic">
+                  <b
+                    >${O.t === 'b'
+                      ? O.it.n + '-р байр · ' + O.it.units + ' айл'
+                      : O.t === 'l'
+                        ? 'Зогсоол · ' +
+                          O.it.n +
+                          ' байр (' +
+                          O.it.aisles +
+                          ' эгнээ × ' +
+                          O.it.cols +
+                          ')'
+                        : O.it.kind === 'play'
+                          ? 'Тоглоомын талбай'
+                          : 'Спорт талбай'}</b
+                  >
+                  <button class="btn s sq" data-act="lySel" data-arg="" aria-label="Хаах">
+                    ${ic('x', 14)}
+                  </button>
+                </div>
+                ${O.t === 'b'
+                  ? html`<div class="cols gs c2">
+                        ${num('fl', O.it.fl, 1, 40, 'Давхар')}
+                        ${num('per', O.it.per, 1, 30, 'Давхартаа айл')}
+                      </div>
+                      <span class="t12 muted">Орцны хаалга аль тал руу харах вэ</span>
+                      ${seg(DOORS, O.it.door, 'lyDoor')}`
+                  : ''}
+                ${O.t === 'l'
+                  ? html`<div class="flex ic g2">
+                      <button class="btn sq" data-act="lySlot" data-arg="-2" aria-label="Хасах">
+                        −
+                      </button>
+                      <input
+                        class="inp num grow center"
+                        type="number"
+                        min="1"
+                        max="160"
+                        value="${O.it.n}"
+                        data-change="lyLotN"
+                      />
+                      <button class="btn sq" data-act="lySlot" data-arg="2" aria-label="Нэмэх">
+                        +
+                      </button>
+                    </div>`
+                  : ''}
+                <div class="flex g2">
+                  ${O.t !== 'l'
+                    ? html`<button class="btn s grow" data-act="lyRot">
+                        ${ic('history', 14)}90° эргүүлэх
+                      </button>`
+                    : ''}
+                  <button class="btn s grow" data-act="lyDel">${ic('x', 14)}Устгах</button>
+                </div>
+              </div>`
+            : html`<p class="faint t12">
+                Объектыг чирж зөөнө · дарж сонгоод давхар, зогсоолын тоо, орцыг засна · дээрх
+                жагсаалтаас map руу чирж шинээр нэмнэ. Улаан болвол тэнд тавих боломжгүй.
+              </p>`}
+        </section>
+        <aside class="card p5 col g3 xl-sticky">
+          <span class="th">${L.n} · map үүсгэгч</span>
+          <p class="muted t12">
+            Хотхоноо энгийн үгээр тайлбарла. Model нь байр, зам, орц, зогсоолын эгнээ, машин орох
+            зам, гэрэл, модыг өөрөө зохион байгуулна. Өөрчлөлт зөвхөн энэ хотхонд хамаарна.
+          </p>
+          <textarea
+            class="inp ly-txt"
+            rows="3"
+            data-in="lyText"
+            placeholder="Жишээ: 8 байр, 12-20 давхар, 60 зогсоол, тоглоомын талбай"
+          >
+${y.text}</textarea
+          >
+          <div class="flex wrap g1">
+            ${LY_EX.map(
+              (t, i) =>
+                html`<button class="chip c-acc ly-ex" data-act="lyEx" data-arg="${i}" title="${t}">
+                  Жишээ ${i + 1}
+                </button>`,
+            )}
+          </div>
+          <button class="btn p" data-act="lyGen">${ic('map', 16)}Map үүсгэх</button>
+          ${y.got.length
+            ? html`<div class="flex wrap g1 ic t12">
+                <span class="muted">Ойлгосон:</span>${y.got.map(
+                  (g) => html`<span class="chip c-ok">${g}</span>`,
+                )}
+              </div>`
+            : ''}
+          <div class="bt pt3 col g2">
+            <span class="th">Нарийн тохируулга</span>
+            <p class="faint t12">
+              Зөвхөн өөрчилсөн хэсэг нь өөрчлөгдөнө — бусад байр, зам, талбай байрандаа үлдэнэ.
+            </p>
+            <div class="cols gs c2">
+              ${num('buildings', L.buildings.length, 1, 24, 'Байрны тоо')}
+              ${num('per', sp.per, 0, 24, 'Давхартаа айл (0=авто)')}
+              ${num('f0', sp.floors[0], 2, 40, 'Давхар · доод')}
+              ${num('f1', sp.floors[1], 2, 40, 'Давхар · дээд')}
+              ${num('slots', Layout.slots(L), 0, 160, 'Гадна зогсоол')}
+              ${num('garage', L.garage, 0, 120, 'Газар доорх гараж')}
+            </div>
+            <div class="flex jb ic t13">
+              Тоглоомын талбай ${switchBtn(hasPark('play'), 'lyTgl', 'play', 'Тоглоомын талбай')}
+            </div>
+            <div class="flex jb ic t13">
+              Спорт талбай ${switchBtn(hasPark('sport'), 'lyTgl', 'sport', 'Спорт талбай')}
+            </div>
+          </div>
+          <div class="bt pt3 col g2">
+            <span class="th">Бүхэлд нь шинээр үүсгэх</span>
+            <p class="faint t12">Бүх байр, зам, зогсоолын байрлал шинээр зохиогдоно.</p>
+            ${seg(
+              [
+                ['grid', 'Замын хоёр талд'],
+                ['row', 'Нэг эгнээ'],
+              ],
+              sp.style,
+              'lyStyle',
+            )}
+            <button class="btn" data-act="lySeed">
+              ${ic('history', 16)}Map-ыг бүхэлд нь шинээр үүсгэх
+            </button>
+          </div>
+          <div class="bt pt3 col g2">
+            <button class="btn p" data-act="lySave" ${y.saved ? Nar.raw('disabled') : ''}>
+              ${ic('check', 16)}${y.saved ? 'Хадгалагдсан' : 'Хадгалж map-аа шинэчлэх'}
+            </button>
+            ${y.saved
+              ? ''
+              : html`<button class="btn" data-act="lyDiscard">Өөрчлөлтийг болих</button>`}
+            ${edited && y.saved
+              ? html`<button class="btn" data-act="lyReset">
+                  ${ic('history', 16)}Анхны map руу буцаах
+                </button>`
+              : ''}
+            <div class="flex g2">
+              <button class="btn s grow" data-act="lyDl">${ic('file', 14)}JSON татах</button>
+              <label class="btn s grow ly-file"
+                >${ic('plus', 14)}JSON оруулах<input
+                  type="file"
+                  accept=".json,application/json"
+                  data-change="lyFile"
+              /></label>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>`;
+  }
+  /** Хадгалаад хуудсыг дахин ачаална → 3D map, зогсоол, айлын жагсаалт шинэ map-аар */
+  const lyReload = (t, m) => {
+    S.toast(t, m, 'ok');
+    setTimeout(() => location.reload(), 600);
+  };
+  const lyActions = {
+    lyEx: (i) => {
+      lyState().text = LY_EX[i];
+      lyActions.lyGen();
+    },
+    lyGen: () => {
+      const y = lyState();
+      if (!y.text.trim())
+        return S.toast('Тайлбар хоосон', 'Хотхоныхоо байр, давхар, зогсоолыг бичнэ үү', 'warn');
+      const sp = Layout.parse(y.text);
+      y.got = sp.got;
+      y.L = own(Layout.generate(sp));
+      y.sel = null;
+      y.saved = false;
+      set({});
+      S.toast('Map үүслээ', sp.got.length ? sp.got.join(' · ') : 'Анхны тохиргоогоор', 'ok');
+    },
+    lySeed: () => lyRegen({ seed: (lySpec().seed || 1) + 1 }),
+    lyTgl: (k) => lyEditMap((L) => Layout.setPark(L, k, !L.parks.some((p) => p.kind === k))),
+    lyStyle: (v) => {
+      // зөвхөн дараагийн "бүхэлд нь шинээр үүсгэх"-д хэрэглэнэ — одоогийн map хөдлөхгүй
+      lyState().L.spec = Object.assign(lySpec(), { style: v });
+      set({});
+    },
+    lySel: (k) => {
+      lyState().sel = k || null;
+      set({});
+    },
+    lyView: (v) => {
+      lyState().view = v;
+      set({});
+    },
+    lyAdd: (k) => lyAddAt(k), // дарвал хоосон газар автоматаар
+    lyRot: () => lyItem((L, k) => Layout.rotateItem(L, k)),
+    lyDel: () =>
+      lyItem((L, k) => {
+        lyState().sel = null;
+        return Layout.removeItem(L, k);
+      }),
+    lySlot: (dlt) =>
+      lyItem((L, k) => {
+        const o = Layout.itemOf(L, k);
+        return Layout.setLotSlots(L, o.i, Math.max(1, o.it.n + Number(dlt)));
+      }),
+    lyDoor: (v) =>
+      lyItem((L, k) => {
+        const o = Layout.itemOf(L, k);
+        if (o && o.t === 'b') o.it.door = v;
+      }),
+    lySave: () => {
+      Layout.save(own(lyState().L));
+      lyReload(
+        'Map шинэчлэгдлээ',
+        D.LAYOUT.n + ' · map, зогсоол, айлын мэдээлэл шинэчлэгдэж байна…',
+      );
+    },
+    lyDiscard: () => {
+      ui.ly = null;
+      set({});
+    },
+    lyReset: () => {
+      Layout.reset(D.LAYOUT.id);
+      lyReload('Анхны map сэргээгдлээ', D.LAYOUT.n);
+    },
+    lyDl: () => {
+      const L = lyState().L;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(
+        new Blob([JSON.stringify(L, null, 2)], { type: 'application/json' }),
+      );
+      a.download = (L.id || 'hothon') + '.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    },
+  };
+  const lyInputs = {
+    lyText: (v) => (lyState().text = v),
+    lyLotN: (v) =>
+      lyItem((L, k) => Layout.setLotSlots(L, Layout.itemOf(L, k).i, Math.max(1, Number(v) || 1))),
+    lyNum: (v, el) => {
+      const k = el.dataset.k,
+        n = Math.max(0, Math.round(Number(v) || 0));
+      const y = lyState();
+      const O = y.sel && Layout.itemOf(y.L, y.sel);
+      if (O && O.t === 'b' && (k === 'fl' || k === 'per') && el.closest('.soft-box')) {
+        // сонгосон нэг байрыг гараар засах
+        const b = O.it;
+        b[k] = Math.max(1, n);
+        b.units = b.fl * b.per;
+        y.saved = false;
+        return set({});
+      }
+      const sp = lySpec();
+      const F = {
+        buildings: (L) => Layout.setBuildings(L, n),
+        per: (L) => Layout.setPer(L, n),
+        f0: (L) => Layout.setFloors(L, n, sp.floors[1]),
+        f1: (L) => Layout.setFloors(L, sp.floors[0], n),
+        // нийт тоо → эхний зогсоолын талбайд (бусад талбай хэвээр)
+        slots: (L) =>
+          Layout.setSlots(
+            L,
+            Math.max(
+              L.lots.length > 1 ? 1 : 0,
+              n - (Layout.slots(L) - (L.lots[0] ? L.lots[0].n : 0)),
+            ),
+          ),
+        garage: (L) => Layout.setGarage(L, n),
+      }[k];
+      if (F) lyEditMap(F);
+    },
+    lyFile: (v, el) => {
+      const f = el.files && el.files[0];
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        try {
+          const L = own(Layout.normalize(JSON.parse(rd.result)));
+          ui.ly = { text: '', L, got: [], sel: null, saved: false };
+          set({});
+          S.toast('Map оруулагдлаа', L.n + ' · ' + L.buildings.length + ' байр', 'ok');
+        } catch (e) {
+          S.toast('Файл буруу байна', e.message, 'bad');
+        }
+        el.value = '';
+      };
+      rd.readAsText(f);
+    },
+  };
+
   /* ------------------------------ boot ------------------------------ */
   Shell.boot({
     role: 'admin',
     brand: 'СӨХ Platform',
-    sub: 'Нарны хотхон · 6 байр',
+    sub: D.LAYOUT.n + ' · ' + NB + ' байр',
     mobile: 'drawer',
     nav: () => {
       const s = st();
@@ -1336,6 +1922,7 @@
         },
         { h: 'residents', label: 'Орон сууц', icon: 'building' },
         { h: 'parking', label: 'Зогсоол', icon: 'car' },
+        { h: 'layout', label: 'Хотхоны бүтэц', icon: 'pin' },
         {
           h: 'requests',
           label: 'Хүсэлт',
@@ -1368,10 +1955,12 @@
       },
       residents: { title: 'Байр ба оршин суугч', topics: ['pay'], view: residents },
       parking: { title: 'Зогсоол · 3D', topics: ['slots'], view: parking, after: parkAfter },
+      layout: { title: 'Хотхоны бүтэц · map builder', view: layoutView, after: lyAfter },
       requests: { title: 'Хүсэлт ба SLA', topics: ['reqs', 'tick'], view: requests },
       staff: { title: 'Ажилтан', topics: ['reqs'], view: staffView },
     },
     actions: {
+      ...lyActions,
       remind: (k) => {
         const [b, n] = k.split('-').map(Number);
         S.remind(b, n);
@@ -1382,7 +1971,10 @@
       breakLight: (id) => S.breakLight(id),
       task: (t) => S.toast('Даалгавар үүслээ', t),
       leakB: (n) => set({ leakB: Number(n) }),
-      demoLeak: () => S.newLeak(ui.leakB, 13 * 8 + 6, 'Угаалгын өрөө'),
+      demoLeak: () => {
+        const B = BUILDINGS[ui.leakB - 1];
+        S.newLeak(ui.leakB, Math.min(B.units, B.per * 8 + 6), 'Угаалгын өрөө');
+      },
       leakHist: () => Nar.modal.open(leakHistory, { cls: 'wide' }),
       call: (u) => S.toast('Айл руу залгаж байна…', u + ' тоот', 'acc'),
       night: () => set({ night: !ui.night }),
@@ -1435,6 +2027,7 @@
     banner: fundBanner,
     bannerTopics: ['fund', 'pay', 'payments', 'ledger', 'remind'],
     inputs: {
+      ...lyInputs,
       expCat: (v) => (ui.exp.cat = v),
       expAmt: (v) => (ui.exp.amt = v),
       expT: (v) => (ui.exp.t = v),

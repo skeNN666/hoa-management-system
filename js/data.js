@@ -38,22 +38,28 @@
     '#94A3B8',
     '#E5E7EB',
   ];
+  // хотхоны бүтэц (байр, зогсоол, гэрэл) — js/layout.js
+  const LAYOUT = Layout.current();
+  const BUILDINGS = LAYOUT.buildings;
   const ME = { name: 'Бат', b: 5, n: 34, plate: '1234 УБА', bill: 97000 };
+  ME.b = Math.min(ME.b, BUILDINGS.length);
+  ME.n = Math.min(ME.n, BUILDINGS[ME.b - 1].units);
   const ME_STAFF = { n: 'Ж. Нарантуяа', role: 'Лифт техникч', cats: ['Лифт', 'Засвар'] };
 
   function makeUnits() {
     const r = rng(77);
     const pick = (a) => a[Math.floor(r() * a.length)];
     const blds = [];
-    for (let b = 1; b <= 6; b++) {
+    for (const B of BUILDINGS) {
+      const b = B.n;
       const L = [];
-      for (let n = 1; n <= 208; n++) {
+      for (let n = 1; n <= B.units; n++) {
         const x = r();
         const st = x < 0.86 ? 0 : x < 0.95 ? 1 : 2;
         L.push({
           b,
           n,
-          floor: Math.ceil(n / 13),
+          floor: Math.ceil(n / B.per),
           owner: pick(INI) + '. ' + pick(SUR),
           tenant: r() < 0.15 ? pick(INI) + '. ' + pick(SUR) : '',
           phone: '99' + Math.floor(100000 + r() * 899999),
@@ -65,13 +71,19 @@
       }
       blds.push(L);
     }
-    Object.assign(blds[4][33], { st: 2, amt: ME.bill, prev: 0, owner: 'Бат', plate: ME.plate });
+    Object.assign(blds[ME.b - 1][ME.n - 1], {
+      st: 2,
+      amt: ME.bill,
+      prev: 0,
+      owner: 'Бат',
+      plate: ME.plate,
+    });
     return blds;
   }
   function makeSlots() {
     const r = rng(11);
     const out = [];
-    for (let i = 1; i <= 48; i++) {
+    for (let i = 1; i <= Layout.slots(LAYOUT); i++) {
       const x = r();
       const st = x < 0.62 ? 1 : x < 0.88 ? 0 : 2;
       out.push({
@@ -84,7 +96,7 @@
         color: CAR_COLORS[Math.floor(r() * CAR_COLORS.length)],
       });
     }
-    for (let i = 1; i <= 40; i++) {
+    for (let i = 1; i <= LAYOUT.garage; i++) {
       const x = r();
       const st = x < 0.7 ? 1 : x < 0.93 ? 0 : 2;
       out.push({
@@ -99,46 +111,13 @@
     }
     return out;
   }
-  const LIGHTS = [
-    [40, 226, 'Гол зам · 1-р байр'],
-    [130, 226, 'Гол зам · 1-р байр'],
-    [220, 226, 'Гол зам · 2-р байр'],
-    [310, 226, 'Гол зам · 2-р байр'],
-    [440, 226, 'Гол зам · 3-р байр'],
-    [540, 226, 'Гол зам · тоглоомын талбай'],
-    [640, 226, 'Гол зам · тоглоомын талбай'],
-    [730, 226, 'Гол зам · зүүн хэсэг'],
-    [90, 292, 'Гол зам · 4-р байр'],
-    [220, 292, 'Гол зам · 4-р байр'],
-    [470, 292, 'Гол зам · 6-р байр'],
-    [660, 292, 'Гол зам · 6-р байр'],
-    [342, 60, 'Төв зам · хойд'],
-    [408, 140, 'Төв зам · 3-р байр'],
-    [342, 190, 'Төв зам · 2-р байр'],
-    [408, 340, 'Төв зам · 6-р байр'],
-    [342, 420, 'Төв зам · 5-р байр'],
-    [408, 500, 'Төв зам · урд'],
-    [530, 170, 'Тоглоомын талбай · баруун'],
-    [620, 170, 'Тоглоомын талбай · зүүн'],
-    [470, 465.5, 'Зогсоол · баруун'],
-    [575, 465.5, 'Зогсоол · төв'],
-    [690, 465.5, 'Зогсоол · зүүн'],
-    [375, 520, 'Орцны хаалга'],
-  ].map((l, i) => ({
+  const LIGHTS = LAYOUT.lights.map((l, i) => ({
     id: 'L' + String(i + 1).padStart(2, '0'),
-    x: l[0],
-    y: l[1],
-    loc: l[2],
+    x: l.x,
+    z: l.z,
+    loc: l.loc,
     st: i === 6 || i === 18 ? 'off' : 'on',
   }));
-  const BUILDINGS = [
-    { n: 1, x: 36, y: 56, w: 110, d: 70, fl: 16 },
-    { n: 2, x: 192, y: 44, w: 118, d: 84, fl: 14 },
-    { n: 3, x: 432, y: 36, w: 78, d: 78, fl: 22 },
-    { n: 4, x: 40, y: 334, w: 110, d: 78, fl: 12 },
-    { n: 5, x: 204, y: 392, w: 104, d: 96, fl: 16 },
-    { n: 6, x: 440, y: 316, w: 280, d: 62, fl: 9 },
-  ];
   const STAFF = [
     ['Ж. Нарантуяа', 'Лифт техникч', 'Лифт'],
     ['Б. Ганзориг', 'Засварчин', 'Засвар'],
@@ -470,6 +449,7 @@
   };
 
   window.D = {
+    LAYOUT,
     CUR_MONTH,
     MONTHS,
     EXP_CATS,

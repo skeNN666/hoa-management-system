@@ -20,6 +20,10 @@
   let nid = Date.now() % 100000;
   let inTick = false;
   const CUR = D.CUR_MONTH;
+  // хотхоны бүтцээс: байрны тоо, байр бүрийн айлын тоо
+  const BL = D.BUILDINGS;
+  const NB = BL.length;
+  const unitOf = (b, k) => 1 + ((k - 1) % BL[b - 1].units);
 
   function fresh() {
     return {
@@ -48,13 +52,13 @@
           times: ['09:12', '09:12', '09:12', '09:20', '10:05'],
           by: 'Ц. Эрдэнэ',
         },
-      ],
+      ].filter((x) => x.b <= NB && x.u <= BL[x.b - 1].units),
       reqs: D.REQUESTS.map((q) => ({ ...q })),
       incoming: D.INCOMING.map((q) => ({ ...q })),
       payments: Array.from({ length: 8 }, (_, i) => ({
         time: hm(Date.now() - i * 7 * 60000),
         inv: 'INV-2026-' + (2400 - i * 7),
-        unit: (i % 6) + 1 + '-р байр ' + (30 + i * 19),
+        unit: (i % NB) + 1 + '-р байр ' + unitOf((i % NB) + 1, 30 + i * 19),
         name: D.PAY_NAMES[i],
         ch: D.CHANNELS[i % 5],
         amt: 65000 + (i % 4) * 10000,
@@ -123,7 +127,13 @@
     };
   }
 
-  const store = Nar.createStore({ key: KEY, version: 4, init: fresh, keep: ['theme'] });
+  // хотхон солигдох эсвэл бүтэц нь өөрчлөгдвөл өгөгдөл шинээр үүснэ (theme хадгалагдана)
+  const store = Nar.createStore({
+    key: KEY,
+    version: '5:' + Layout.rev(D.LAYOUT),
+    init: fresh,
+    keep: ['theme'],
+  });
   let st = store.state;
   if (!st.theme)
     st.theme =
@@ -133,7 +143,8 @@
     units = D.makeUnits();
     st.paidUnits.forEach((k) => {
       const [b, n] = k.split('-').map(Number);
-      units[b - 1][n - 1] = { ...units[b - 1][n - 1], st: 0, prev: 0 };
+      if (units[b - 1] && units[b - 1][n - 1])
+        units[b - 1][n - 1] = { ...units[b - 1][n - 1], st: 0, prev: 0 };
     });
   };
   applyPaid();
@@ -521,7 +532,7 @@
           {
             time: hm(),
             inv: 'INV-2026-' + (2400 + sec),
-            unit: (sec % 6) + 1 + '-р байр ' + (10 + ((sec * 7) % 190)),
+            unit: (sec % NB) + 1 + '-р байр ' + unitOf((sec % NB) + 1, 10 + ((sec * 7) % 190)),
             name: D.PAY_NAMES[i],
             ch: D.CHANNELS[sec % 5],
             amt: 65000 + (sec % 4) * 10000,
@@ -583,7 +594,11 @@
         }
       });
       if (sec === 25 || (sec > 25 && sec % 90 === 0))
-        S.newLeak(1 + (sec % 6), 13 * (2 + (sec % 12)) + 4, ROOMS[sec % 3]);
+        S.newLeak(
+          1 + (sec % NB),
+          unitOf(1 + (sec % NB), BL[sec % NB].per * (2 + (sec % 12)) + 4),
+          ROOMS[sec % 3],
+        );
       const p = st.park;
       if (p.stage === 'reserved') {
         if (p.hold <= 1) S.parkCancel();
@@ -612,8 +627,8 @@
         const outs = st.slots.filter(
           (x) => x.zone === zone && !x.mine && x.st !== 3 && x.sens !== 'off',
         );
-        const c = outs[(sec * 7) % outs.length];
-        if (c.st === 0)
+        const c = outs[(sec * 7) % Math.max(1, outs.length)]; // гаражгүй хотхонд хоосон
+        if (c && c.st === 0)
           Object.assign(c, {
             st: sec % 3 === 0 ? 2 : 1,
             plate: 1000 + ((sec * 37) % 8999) + ' УБ' + 'АБВГДЕ'[sec % 6],
@@ -622,8 +637,8 @@
                 (Math.floor(sec / 8) * 3 + (zone === 'p' ? 1 : 5)) % D.CAR_COLORS.length
               ],
           });
-        else Object.assign(c, { st: 0, plate: '' });
-        T.push('slots');
+        else if (c) Object.assign(c, { st: 0, plate: '' });
+        if (c) T.push('slots');
       }
       emit(T);
     },
