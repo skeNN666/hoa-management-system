@@ -1,5 +1,6 @@
 /* СӨХ Platform — Удирдлага (admin.html) */
 (function () {
+  if (!Api.guard('admin')) return; // өөр эрхтэй хэрэглэгч → өөрийнх нь хуудас
   const { html, cx } = Nar;
   const { ic, seg, switchBtn, prio } = Shell;
   const { money, nf, ago, REQ_STATUS, BUILDINGS } = D;
@@ -14,6 +15,7 @@
     selL: 'L07',
     zone: 'p',
     selSlot: null,
+    asg: { u: '', f: '60000' }, // зогсоол түрээслүүлэх маягт
     b: Math.min(5, NB),
     unit: 34,
     q: '',
@@ -403,6 +405,44 @@
   }
 
   /* ------------------------------ 3D map ------------------------------ */
+  /** Сонгосон байрны айл бүр: давхар × давхартаа айл, төлбөр / ус алдалтын өнгөөр. Дарвал тэр айл руу */
+  function unitGrid(B, BU, s) {
+    const FL = Math.ceil(B.units / B.per);
+    const wet = new Set(s.leaks.filter((x) => x.b === B.n && x.st !== 'fixed').map((x) => x.u));
+    const rows = [];
+    for (let f = FL; f >= 1; f--) {
+      const cells = [];
+      for (let k = 0; k < B.per; k++) {
+        const n = (f - 1) * B.per + k + 1;
+        const u = BU[n - 1];
+        if (!u) break;
+        cells.push(
+          html`<button
+            class="${cx('mc-u', ['ok', 'warn', 'bad'][u.st], wet.has(n) && 'wet')}"
+            data-act="mcUnit"
+            data-arg="${B.n + '-' + n}"
+            title="${n + ' тоот · ' + u.owner + (wet.has(n) ? ' · ус алдалт' : '')}"
+          ></button>`,
+        );
+      }
+      rows.push(
+        html`<div class="mc-row">
+          <span class="num">${f}</span>
+          <div>${cells}</div>
+        </div>`,
+      );
+    }
+    return html`<div class="mc-units" style="${'--per:' + B.per}">
+      <div class="flex jb t11 b mc-mu">
+        <span>Айл бүр · дарж дэлгэрэнгүй</span>
+        <span class="flex g2"
+          ><i class="mc-u ok"></i>Төлсөн <i class="mc-u bad"></i>Өртэй
+          <i class="mc-u wet"></i>Ус</span
+        >
+      </div>
+      <div class="mc-grid">${rows}</div>
+    </div>`;
+  }
   let complex = null;
   function mapView() {
     const s = st();
@@ -472,6 +512,7 @@
                 <span class="mc-mu">Ус алдалт</span
                 ><b>${s.leaks.filter((x) => x.b === B.n && x.st !== 'fixed').length || 'Хэвийн'}</b>
               </div>
+              ${unitGrid(B, BU, s)}
             </div>`
           : ''}
       </section>
@@ -1100,6 +1141,7 @@
     const z = st().slots.filter((s) => s.zone === ui.zone);
     const n = (k) => z.filter((s) => s.st === k).length;
     const cur = ui.selSlot ? st().slots.find((s) => s.id === ui.selSlot) : null;
+    const rent = S.rentIncome();
     return html`<div class="col g4">
       <div class="flex wrap g2 jb ic">
         ${seg(
@@ -1116,6 +1158,8 @@
               html`<span class="${'chip lg ' + SLT[k]}">${l} · <b class="num">${n(k)}</b></span>`,
           )}<span class="chip lg c-bad"
             >Мэдрэгч асуудалтай · ${z.filter((s) => s.sens !== 'ok').length}</span
+          ><span class="chip lg rent-chip"
+            >Түрээс · ${rent.n} зогсоол · <b class="num">${money(rent.sum)}/сар</b></span
           >
         </div>
       </div>
@@ -1146,9 +1190,44 @@
                     html`<div class="flex jb t13">
                       <span class="muted">${k}</span><b class="num">${v}</b>
                     </div>`,
-                )}`
+                )}
+                <div class="soft-box p3 col g2">
+                  <span class="th">Айлд түрээслүүлэх</span>
+                  ${cur.own
+                    ? html`<div class="flex jb t13">
+                          <span class="muted">Түрээслэгч</span
+                          ><b class="num">${cur.own.replace('-', '-р байр ')} тоот</b>
+                        </div>
+                        <div class="flex jb t13">
+                          <span class="muted">Сарын төлбөр</span
+                          ><b class="num">${money(cur.fee || 0)}</b>
+                        </div>
+                        <button class="btn s" data-act="slotUnassign" data-arg="${cur.id}">
+                          Хуваарилалт цуцлах
+                        </button>`
+                    : html`<div class="cols gs c2">
+                          <label class="field"
+                            >Айл (байр-тоот)<input
+                              class="inp num"
+                              data-in="asgU"
+                              placeholder="5-34"
+                              value="${ui.asg.u}"
+                          /></label>
+                          <label class="field"
+                            >Сарын төлбөр ₮<input
+                              class="inp num"
+                              inputmode="numeric"
+                              data-in="asgF"
+                              value="${ui.asg.f}"
+                          /></label>
+                        </div>
+                        <button class="btn p s" data-act="slotAssign" data-arg="${cur.id}">
+                          ${ic('check', 14)}Хуваарилах
+                        </button>`}
+                </div>`
             : html`<p class="muted t13">
                 3D зураг дээрх зогсоол дээр дарна уу. Чирж эргүүлэх, scroll-оор томруулж болно.
+                Сонгосон зогсоолыг айлд сар бүрийн төлбөртэй түрээслүүлж болно.
               </p>`}
           <p class="faint t12 bt pt3">
             Зогсоол бүрийн доор мэдрэгч бий. Машин ирэх, гарахыг автоматаар бүртгэж, хүлээлгийн
@@ -1331,13 +1410,16 @@
       c: D.LAYOUT.c,
     });
   const lyState = () =>
-    ui.ly || (ui.ly = { text: '', L: clone(D.LAYOUT), got: [], sel: null, saved: true });
+    ui.ly ||
+    (ui.ly = { text: '', L: clone(D.LAYOUT), got: [], sel: null, saved: true, hist: [], fut: [] });
   const lySpec = () => Object.assign({}, Layout.DEF, lyState().L.spec || {});
   /** spec-ийн нэг утгыг өөрчлөөд map-ыг дахин үүсгэнэ (id, нэр, өнгө хадгалагдана) */
   function lyRegen(patch) {
     const y = lyState();
     const sp = Object.assign(lySpec(), { manual: false }, patch);
     sp.floors = [Math.min(sp.floors[0], sp.floors[1]), Math.max(sp.floors[0], sp.floors[1])];
+    y.hist.push(JSON.stringify(y.L)); // бүхэлд нь шинээр үүсгэсэн ч буцаах боломжтой
+    y.fut = [];
     y.L = own(Layout.generate(sp));
     y.sel = null;
     y.saved = false;
@@ -1349,6 +1431,13 @@
     ['lot', 'Зогсоол', 'car'],
     ['play', 'Тоглоомын талбай', 'party'],
     ['sport', 'Спорт талбай', 'star'],
+    ['rh', 'Хэвтээ зам', 'arrow-right'],
+    ['rv', 'Босоо зам', 'list'],
+  ];
+  const SHAPES = [
+    ['rect', 'Тэгш өнцөгт'],
+    ['L', 'L хэлбэр'],
+    ['U', 'U хэлбэр'],
   ];
   /** дэлгэцийн цэгийг SVG (map) координат руу */
   const lyPt = (svg, e) => {
@@ -1357,64 +1446,227 @@
     p.y = e.clientY;
     return p.matrixTransform(svg.getScreenCTM().inverse());
   };
+
+  /* Буцаах / дахих: засвар бүрийн өмнөх map-ыг түүхэнд хадгална (40 хүртэл) */
+  function lyMut(fn) {
+    const y = lyState();
+    const before = JSON.stringify(y.L);
+    const r = fn(y.L);
+    const after = JSON.stringify(y.L);
+    if (after !== before) {
+      y.hist.push(before);
+      if (y.hist.length > 40) y.hist.shift();
+      y.fut = [];
+      y.saved = false;
+    }
+    return r;
+  }
+  function lyUndo(back) {
+    const y = lyState();
+    const from = back ? y.hist : y.fut,
+      to = back ? y.fut : y.hist;
+    if (!from.length) return;
+    to.push(JSON.stringify(y.L));
+    y.L = JSON.parse(from.pop());
+    y.sel = null;
+    y.saved = false;
+    set({});
+  }
+
+  /* Томруулах / гүйлгэх: viewBox (y.vb) */
+  const lyFull = (L) => ({ x: -L.size[0] / 2, z: -L.size[1] / 2, w: L.size[0], d: L.size[1] });
+  function lyZoomAt(y, k, cx, cz) {
+    const v = y.vb || lyFull(y.L);
+    const W = y.L.size[0];
+    const nw = Math.max(W / 8, Math.min(W * 1.6, v.w * k));
+    const s = nw / v.w;
+    if (cx == null) {
+      cx = v.x + v.w / 2;
+      cz = v.z + v.d / 2;
+    }
+    y.vb = { x: cx - (cx - v.x) * s, z: cz - (cz - v.z) * s, w: nw, d: v.d * s };
+  }
+  const vbStr = (v) => v.x + ' ' + v.z + ' ' + v.w + ' ' + v.d;
+
   let lyDrag = null;
+  const pinch = new Map(); // хоёр хуруугаар томруулах
   document.addEventListener('pointerdown', (e) => {
-    const g = e.target.closest && e.target.closest('.ly-svg [data-drag]');
-    if (!g || !ui.ly) return;
-    const svg = g.ownerSVGElement,
-      o = Layout.itemOf(ui.ly.L, g.dataset.drag);
-    if (!o) return;
-    lyDrag = {
-      key: g.dataset.drag,
-      g,
-      svg,
-      p0: lyPt(svg, e),
-      o,
-      dx: 0,
-      dz: 0,
-      moved: false,
-      id: e.pointerId,
+    const svg = e.target.closest && e.target.closest('.ly-svg');
+    if (!svg || !ui.ly) return;
+    const y = ui.ly;
+    const cap = () => {
+      try {
+        svg.setPointerCapture(e.pointerId);
+      } catch (err) {} // зарим төхөөрөмж дэмжихгүй
+      e.preventDefault();
     };
-    try {
-      svg.setPointerCapture(e.pointerId);
-    } catch (err) {} // зарим төхөөрөмж дэмжихгүй
-    e.preventDefault();
+    const base = { svg, p0: lyPt(svg, e), dx: 0, dz: 0, moved: false, id: e.pointerId };
+    const rz = e.target.closest('[data-resize]');
+    if (rz) {
+      // хэмжээ өөрчлөх бариул
+      const o = Layout.itemOf(y.L, rz.dataset.resize);
+      if (!o) return;
+      const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      ghost.setAttribute('class', 'ly-ghost');
+      svg.appendChild(ghost);
+      lyDrag = { ...base, type: 'rz', key: rz.dataset.resize, o, ghost };
+      return cap();
+    }
+    const g = e.target.closest('[data-drag]');
+    if (g) {
+      const o = Layout.itemOf(y.L, g.dataset.drag);
+      if (!o) return;
+      lyDrag = { ...base, type: 'mv', key: g.dataset.drag, g, o };
+      return cap();
+    }
+    // хоосон газар: гүйлгэх (эсвэл дэвсгэр зургийг зөөх), хоёр хуруу → томруулах
+    pinch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.size === 2) {
+      const [a, b] = [...pinch.values()];
+      lyDrag = {
+        ...base,
+        type: 'pinch',
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        vb0: y.vb || lyFull(y.L),
+      };
+      return cap();
+    }
+    lyDrag = {
+      ...base,
+      type: y.bgMove && y.L.bg ? 'bg' : 'pan',
+      vb0: y.vb || lyFull(y.L),
+      c0: { x: e.clientX, y: e.clientY },
+    };
+    cap();
   });
   document.addEventListener('pointermove', (e) => {
     const d = lyDrag;
-    if (!d || e.pointerId !== d.id) return;
+    if (pinch.has(e.pointerId)) pinch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!d) return;
+    const y = ui.ly;
+    if (d.type === 'pinch') {
+      const [a, b] = [...pinch.values()];
+      if (!b) return;
+      const k = d.dist / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      y.vb = d.vb0;
+      lyZoomAt(y, k);
+      d.svg.setAttribute('viewBox', vbStr(y.vb));
+      d.moved = true;
+      return;
+    }
+    if (e.pointerId !== d.id) return;
+    if (d.type === 'pan' || d.type === 'bg') {
+      // дэлгэцийн пикселийг map-ын нэгж рүү (viewBox-ын харьцаагаар)
+      const r = d.svg.getBoundingClientRect();
+      const k = Math.max(d.vb0.w / r.width, d.vb0.d / r.height);
+      const mx = (e.clientX - d.c0.x) * k,
+        mz = (e.clientY - d.c0.y) * k;
+      if (Math.hypot(mx, mz) > 0.4) d.moved = true;
+      if (d.type === 'pan') {
+        y.vb = { ...d.vb0, x: d.vb0.x - mx, z: d.vb0.z - mz };
+        d.svg.setAttribute('viewBox', vbStr(y.vb));
+      } else {
+        d.dx = Math.round(mx * 2) / 2;
+        d.dz = Math.round(mz * 2) / 2;
+        const im = d.svg.querySelector('.ly-bg');
+        if (im) im.setAttribute('transform', 'translate(' + d.dx + ' ' + d.dz + ')');
+      }
+      return;
+    }
     const p = lyPt(d.svg, e);
     d.dx = Math.round((p.x - d.p0.x) * 2) / 2;
     d.dz = Math.round((p.y - d.p0.y) * 2) / 2;
+    if (d.type === 'mv' && d.key.startsWith('r:')) {
+      // зам зөвхөн перпендикуляр чиглэлд хөдөлнө
+      if (d.o.it.z1 === d.o.it.z2) d.dx = 0;
+      else d.dz = 0;
+    }
     if (Math.hypot(d.dx, d.dz) > 0.4) d.moved = true;
     if (!d.moved) return;
+    if (d.type === 'rz') {
+      const w = Math.max(4, d.o.r.w + d.dx),
+        dd = Math.max(4, d.o.r.d + d.dz);
+      Object.entries({ x: d.o.r.x, y: d.o.r.z, width: w, height: dd }).forEach(([k, v]) =>
+        d.ghost.setAttribute(k, v),
+      );
+      return;
+    }
     // чирж байх үед DOM-ыг шууд хөдөлгөнө (дахин зурахгүй) — давхцвал улаан
     d.g.setAttribute('transform', 'translate(' + d.dx + ' ' + d.dz + ')');
     d.g.classList.add('drag');
-    d.g.classList.toggle('bad', !Layout.canPlace(ui.ly.L, d.key, d.o.r.x + d.dx, d.o.r.z + d.dz));
+    d.g.classList.toggle('bad', !Layout.canPlace(y.L, d.key, d.o.r.x + d.dx, d.o.r.z + d.dz));
   });
   const lyDrop = (e, cancel) => {
+    pinch.delete(e.pointerId);
     const d = lyDrag;
-    if (!d || e.pointerId !== d.id) return;
+    if (!d || (e.pointerId !== d.id && d.type !== 'pinch')) return;
     lyDrag = null;
     const y = lyState();
-    d.g.removeAttribute('transform');
-    d.g.classList.remove('drag', 'bad');
-    if (cancel) return;
+    if (d.g) {
+      d.g.removeAttribute('transform');
+      d.g.classList.remove('drag', 'bad');
+    }
+    if (d.ghost) d.ghost.remove();
+    if (cancel || d.type === 'pinch' || d.type === 'pan') {
+      if (d.type === 'pan' && !d.moved && y.sel) {
+        y.sel = null; // хоосон газар дарвал сонголт арилна
+        set({});
+      }
+      return;
+    }
+    if (d.type === 'bg') {
+      if (d.moved) lyMut((L) => Layout.bgAdjust(L, { dx: d.dx, dz: d.dz }));
+      return set({});
+    }
     if (!d.moved) {
       y.sel = y.sel === d.key ? null : d.key;
       return set({});
     }
-    const r = Layout.moveItem(y.L, d.key, d.o.r.x + d.dx, d.o.r.z + d.dz);
-    if (!r.ok) S.toast('Зөөх боломжгүй', r.msg, 'warn');
-    else {
-      y.saved = false;
-      y.sel = d.key;
-    }
+    const r = lyMut((L) =>
+      d.type === 'rz'
+        ? Layout.resizeItem(L, d.key, d.o.r.w + d.dx, d.o.r.d + d.dz)
+        : Layout.moveItem(L, d.key, d.o.r.x + d.dx, d.o.r.z + d.dz),
+    );
+    if (!r.ok)
+      S.toast(d.type === 'rz' ? 'Хэмжээ өөрчлөх боломжгүй' : 'Зөөх боломжгүй', r.msg, 'warn');
+    else y.sel = d.key;
     set({});
   };
   document.addEventListener('pointerup', (e) => lyDrop(e));
   document.addEventListener('pointercancel', (e) => lyDrop(e, true));
+  // хулганы дугуйгаар томруулах (заагчийн цэгийг төв болгоно)
+  document.addEventListener(
+    'wheel',
+    (e) => {
+      const svg = e.target.closest && e.target.closest('.ly-svg');
+      if (!svg || !ui.ly) return;
+      e.preventDefault();
+      const p = lyPt(svg, e);
+      lyZoomAt(ui.ly, e.deltaY > 0 ? 1.15 : 1 / 1.15, p.x, p.y);
+      svg.setAttribute('viewBox', vbStr(ui.ly.vb));
+    },
+    { passive: false },
+  );
+  // товчлуур: Ctrl+Z буцаах, Ctrl+Y / Ctrl+Shift+Z дахих, Delete устгах, Esc сонголт арилгах
+  document.addEventListener('keydown', (e) => {
+    if (!ui.ly || !/#\/layout/.test(location.hash)) return;
+    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName))
+      return;
+    const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === 'z') {
+      e.preventDefault();
+      lyUndo(!e.shiftKey);
+    } else if ((e.ctrlKey || e.metaKey) && k === 'y') {
+      e.preventDefault();
+      lyUndo(false);
+    } else if ((k === 'delete' || k === 'backspace') && ui.ly.sel) {
+      e.preventDefault();
+      lyActions.lyDel();
+    } else if (k === 'escape' && ui.ly.sel) {
+      ui.ly.sel = null;
+      set({});
+    }
+  });
   // palette → map руу чирж нэмэх (HTML5 drag & drop)
   document.addEventListener('dragstart', (e) => {
     const b = e.target.closest && e.target.closest('[data-add]');
@@ -1438,10 +1690,13 @@
   });
   function lyAddAt(kind, x, z) {
     const y = lyState();
-    const r = Layout.addItem(y.L, kind, x, z);
+    const r = lyMut((L) =>
+      kind === 'rh' || kind === 'rv'
+        ? Layout.addRoad(L, kind === 'rh' ? 'h' : 'v', x == null ? null : kind === 'rh' ? z : x)
+        : Layout.addItem(L, kind, x, z),
+    );
     if (!r.ok) return S.toast('Нэмэх боломжгүй', r.msg, 'warn');
     y.sel = r.key;
-    y.saved = false;
     set({});
     S.toast('Map засагдлаа', r.msg, 'ok');
   }
@@ -1449,10 +1704,35 @@
   function lyItem(fn) {
     const y = lyState();
     if (!y.sel) return;
-    const r = fn(y.L, y.sel);
-    if (r && r.ok === false) return S.toast('Боломжгүй', r.msg || '', 'warn');
-    y.saved = false;
+    const r = lyMut((L) => fn(L, y.sel));
+    if (r && r.ok === false) S.toast('Боломжгүй', r.msg || '', 'warn');
     set({});
+  }
+  /** Дэвсгэр зураг: localStorage-д багтаахын тулд 1600px хүртэл жижигрүүлж JPEG болгоно */
+  function lyBgFile(f) {
+    const rd = new FileReader();
+    rd.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(im.width, im.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(im.width * k);
+        c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        const src = c.toDataURL('image/jpeg', 0.8);
+        lyMut((L) => Layout.setBg(L, src, im.width / im.height));
+        lyState().bgMove = true;
+        set({});
+        S.toast(
+          'Дэвсгэр зураг нэмлээ',
+          'Зургийг чирж байрлуулаад, дээр нь байр, замаа зурна',
+          'ok',
+        );
+      };
+      im.onerror = () => S.toast('Зураг уншигдсангүй', 'PNG эсвэл JPG файл сонгоно уу', 'bad');
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(f);
   }
 
   /* 3D preview — засаж буй layout-ыг жинхэнэ 3D map-аар харуулна */
@@ -1506,7 +1786,7 @@
   /** Одоогийн map дээр хэсэгчилсэн засвар хийнэ (Layout.setSlots гэх мэт) */
   function lyEditMap(fn) {
     const y = lyState();
-    const r = fn(y.L);
+    const r = lyMut(fn);
     y.sel = null;
     y.saved = false;
     set({});
@@ -1583,9 +1863,79 @@
               'lyView',
             )}
           </div>
+          <div class="flex wrap g2 ic ly-tools">
+            <button
+              class="btn s"
+              data-act="lyUndo"
+              ${y.hist.length ? '' : Nar.raw('disabled')}
+              title="Буцаах (Ctrl+Z)"
+            >
+              ↶ Буцаах
+            </button>
+            <button
+              class="btn s"
+              data-act="lyRedo"
+              ${y.fut.length ? '' : Nar.raw('disabled')}
+              title="Дахих (Ctrl+Y)"
+            >
+              ↷ Дахих
+            </button>
+            ${y.view === '2d'
+              ? html`<span class="ly-sep"></span>
+                  <button class="btn s sq" data-act="lyZoom" data-arg="in" aria-label="Томруулах">
+                    +
+                  </button>
+                  <button
+                    class="btn s sq"
+                    data-act="lyZoom"
+                    data-arg="out"
+                    aria-label="Жижигрүүлэх"
+                  >
+                    −
+                  </button>
+                  <button class="btn s" data-act="lyZoom" data-arg="fit">Бүтэн харах</button>
+                  <span class="ly-sep"></span>
+                  <label class="btn s ly-file"
+                    >${ic('camera', 14)}${L.bg ? 'Дэвсгэр солих' : 'Дэвсгэр зураг'}<input
+                      type="file"
+                      accept="image/*"
+                      data-change="lyBgFile"
+                  /></label>`
+              : ''}
+          </div>
+          ${L.bg && y.view === '2d'
+            ? html`<div class="soft-box p2 flex wrap g2 ic t12">
+                <b>Дэвсгэр зураг</b>
+                <label class="flex ic g1"
+                  >Тунгалаг<input
+                    type="range"
+                    min="5"
+                    max="100"
+                    value="${Math.round(L.bg.op * 100)}"
+                    data-change="lyBgOp"
+                /></label>
+                <button
+                  class="btn s sq"
+                  data-act="lyBgScale"
+                  data-arg="0.9"
+                  aria-label="Жижигрүүлэх"
+                >
+                  −
+                </button>
+                <button class="btn s sq" data-act="lyBgScale" data-arg="1.1" aria-label="Томруулах">
+                  +
+                </button>
+                <button class="${cx('btn s', y.bgMove && 'p')}" data-act="lyBgMove">
+                  ${y.bgMove ? 'Зургийг чирж байна ✓' : 'Зургийг зөөх'}
+                </button>
+                <button class="btn s" data-act="lyBgDel">${ic('x', 14)}Хасах</button>
+              </div>`
+            : ''}
           ${y.view === '3d'
             ? html`<div class="ly-3d card p0 ovh">${Nar.keep('ly3d', 'fill')}</div>`
-            : html`<div class="ly-box">${Nar.raw(Layout.svg(L, { drag: true, sel: y.sel }))}</div>`}
+            : html`<div class="ly-box">
+                ${Nar.raw(Layout.svg(L, { drag: true, sel: y.sel, vb: y.vb }))}
+              </div>`}
           <div class="flex wrap g3 t12 muted">
             <span><i class="ly-sw b"></i>Байр (тоо = дугаар, д = давхар)</span>
             <span><i class="ly-sw door"></i>Орц</span>
@@ -1608,9 +1958,11 @@
                           ' эгнээ × ' +
                           O.it.cols +
                           ')'
-                        : O.it.kind === 'play'
-                          ? 'Тоглоомын талбай'
-                          : 'Спорт талбай'}</b
+                        : O.t === 'r'
+                          ? (O.it.z1 === O.it.z2 ? 'Хэвтээ' : 'Босоо') + ' зам · чирж зөөнө'
+                          : O.it.kind === 'play'
+                            ? 'Тоглоомын талбай'
+                            : 'Спорт талбай'}</b
                   >
                   <button class="btn s sq" data-act="lySel" data-arg="" aria-label="Хаах">
                     ${ic('x', 14)}
@@ -1621,8 +1973,16 @@
                         ${num('fl', O.it.fl, 1, 40, 'Давхар')}
                         ${num('per', O.it.per, 1, 30, 'Давхартаа айл')}
                       </div>
+                      <span class="t12 muted">Хэлбэр</span>
+                      ${seg(SHAPES, O.it.shape || 'rect', 'lyShape')}
                       <span class="t12 muted">Орцны хаалга аль тал руу харах вэ</span>
-                      ${seg(DOORS, O.it.door, 'lyDoor')}`
+                      ${seg(DOORS, O.it.door, 'lyDoor')}
+                      <span class="t12 muted">Орцны тоо</span>
+                      ${seg(
+                        [1, 2, 3, 4].map((n) => [n, n + ' орц']),
+                        O.it.entr || 1,
+                        'lyEntr',
+                      )}`
                   : ''}
                 ${O.t === 'l'
                   ? html`<div class="flex ic g2">
@@ -1643,7 +2003,7 @@
                     </div>`
                   : ''}
                 <div class="flex g2">
-                  ${O.t !== 'l'
+                  ${O.t === 'b' || O.t === 'p'
                     ? html`<button class="btn s grow" data-act="lyRot">
                         ${ic('history', 14)}90° эргүүлэх
                       </button>`
@@ -1652,8 +2012,11 @@
                 </div>
               </div>`
             : html`<p class="faint t12">
-                Объектыг чирж зөөнө · дарж сонгоод давхар, зогсоолын тоо, орцыг засна · дээрх
-                жагсаалтаас map руу чирж шинээр нэмнэ. Улаан болвол тэнд тавих боломжгүй.
+                Объектыг чирж зөөнө · дарж сонгоод давхар, хэлбэр, орц, зогсоолын тоог засна ·
+                сонгосон объектын буланд байгаа шар бариулаар хэмжээг өөрчилнө · дээрх жагсаалтаас
+                map руу чирж шинээр нэмнэ · хоосон газар чирж гүйлгэж, дугуйгаар (утсанд хоёр
+                хуруугаар) томруулна. Улаан болвол тэнд тавих боломжгүй. Ctrl+Z буцаах, Delete
+                устгах.
               </p>`}
         </section>
         <aside class="card p5 col g3 xl-sticky">
@@ -1763,6 +2126,8 @@ ${y.text}</textarea
         return S.toast('Тайлбар хоосон', 'Хотхоныхоо байр, давхар, зогсоолыг бичнэ үү', 'warn');
       const sp = Layout.parse(y.text);
       y.got = sp.got;
+      y.hist.push(JSON.stringify(y.L));
+      y.fut = [];
       y.L = own(Layout.generate(sp));
       y.sel = null;
       y.saved = false;
@@ -1778,6 +2143,29 @@ ${y.text}</textarea
     },
     lySel: (k) => {
       lyState().sel = k || null;
+      set({});
+    },
+    lyUndo: () => lyUndo(true),
+    lyRedo: () => lyUndo(false),
+    lyZoom: (k) => {
+      const y = lyState();
+      if (k === 'fit') y.vb = null;
+      else lyZoomAt(y, k === 'in' ? 1 / 1.25 : 1.25);
+      set({});
+    },
+    lyShape: (v) => lyItem((L, k) => Layout.setShape(L, k, v)),
+    lyEntr: (n) => lyItem((L, k) => Layout.setEntr(L, k, Number(n))),
+    lyBgScale: (k) => {
+      lyMut((L) => Layout.bgAdjust(L, { scale: Number(k) }));
+      set({});
+    },
+    lyBgMove: () => {
+      lyState().bgMove = !lyState().bgMove;
+      set({});
+    },
+    lyBgDel: () => {
+      lyMut((L) => Layout.setBg(L, null));
+      lyState().bgMove = false;
       set({});
     },
     lyView: (v) => {
@@ -1801,21 +2189,27 @@ ${y.text}</textarea
         const o = Layout.itemOf(L, k);
         if (o && o.t === 'b') o.it.door = v;
       }),
-    lySave: () => {
-      Layout.save(own(lyState().L));
-      lyReload(
-        'Map шинэчлэгдлээ',
-        D.LAYOUT.n + ' · map, зогсоол, айлын мэдээлэл шинэчлэгдэж байна…',
-      );
-    },
+    lySave: () =>
+      Layout.save(own(lyState().L)).then((r) =>
+        r.ok
+          ? lyReload(
+              'Map шинэчлэгдлээ',
+              D.LAYOUT.n +
+                (Api.online() ? ' · серверт хадгалагдлаа' : '') +
+                ' · map, зогсоол, айлын мэдээлэл шинэчлэгдэж байна…',
+            )
+          : S.toast('Хадгалж чадсангүй', r.msg, 'bad'),
+      ),
     lyDiscard: () => {
       ui.ly = null;
       set({});
     },
-    lyReset: () => {
-      Layout.reset(D.LAYOUT.id);
-      lyReload('Анхны map сэргээгдлээ', D.LAYOUT.n);
-    },
+    lyReset: () =>
+      Layout.reset(D.LAYOUT.id).then((r) =>
+        r.ok
+          ? lyReload('Анхны map сэргээгдлээ', D.LAYOUT.n)
+          : S.toast('Сэргээж чадсангүй', r.msg, 'bad'),
+      ),
     lyDl: () => {
       const L = lyState().L;
       const a = document.createElement('a');
@@ -1829,6 +2223,15 @@ ${y.text}</textarea
   };
   const lyInputs = {
     lyText: (v) => (lyState().text = v),
+    lyBgOp: (v) => {
+      lyMut((L) => Layout.bgAdjust(L, { op: Number(v) / 100 }));
+      set({});
+    },
+    lyBgFile: (v, el) => {
+      const f = el.files && el.files[0];
+      if (f) lyBgFile(f);
+      el.value = '';
+    },
     lyLotN: (v) =>
       lyItem((L, k) => Layout.setLotSlots(L, Layout.itemOf(L, k).i, Math.max(1, Number(v) || 1))),
     lyNum: (v, el) => {
@@ -1838,10 +2241,11 @@ ${y.text}</textarea
       const O = y.sel && Layout.itemOf(y.L, y.sel);
       if (O && O.t === 'b' && (k === 'fl' || k === 'per') && el.closest('.soft-box')) {
         // сонгосон нэг байрыг гараар засах
-        const b = O.it;
-        b[k] = Math.max(1, n);
-        b.units = b.fl * b.per;
-        y.saved = false;
+        lyMut(() => {
+          const b = O.it;
+          b[k] = Math.max(1, n);
+          b.units = b.fl * b.per;
+        });
         return set({});
       }
       const sp = lySpec();
@@ -1870,7 +2274,9 @@ ${y.text}</textarea
       rd.onload = () => {
         try {
           const L = own(Layout.normalize(JSON.parse(rd.result)));
-          ui.ly = { text: '', L, got: [], sel: null, saved: false };
+          const y = lyState();
+          y.hist.push(JSON.stringify(y.L));
+          Object.assign(y, { L, fut: [], sel: null, saved: false });
           set({});
           S.toast('Map оруулагдлаа', L.n + ' · ' + L.buildings.length + ' байр', 'ok');
         } catch (e) {
@@ -1991,6 +2397,16 @@ ${y.text}</textarea
         set({ b, unit: n, q: '' });
       },
       zone: (z) => set({ zone: z, selSlot: null }),
+      mcUnit: (k) => {
+        const [b, n] = k.split('-').map(Number);
+        set({ b, unit: n, q: '' });
+        Nar.router.go('residents');
+      },
+      slotAssign: (id) => {
+        S.assignSlot(id, ui.asg.u, Number(String(ui.asg.f).replace(/[^\d]/g, '')));
+        ui.asg.u = '';
+      },
+      slotUnassign: (id) => S.unassignSlot(id),
       sla: (m) => set({ sla: Number(m) }),
       openReq: (id) => {
         openReqId = id;
@@ -2036,6 +2452,8 @@ ${y.text}</textarea
       wkT: (v) => (ui.wk.t = v),
       wkWhere: (v) => (ui.wk.where = v),
       resQ: (v) => set({ q: v }),
+      asgU: (v) => (ui.asg.u = v),
+      asgF: (v) => (ui.asg.f = v),
       inv: (v, el) => {
         const k = el.dataset.k;
         S.setInvoice({ [k]: k === 'time' ? v : Number(v) });

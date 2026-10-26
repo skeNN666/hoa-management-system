@@ -230,7 +230,8 @@
         if (s.id.trim() !== R.demo[0] || s.pw !== R.demo[1])
           return set({ err: 'Нэвтрэх нэр эсвэл нууц үг буруу байна', shake: s.shake + 1 });
         set({ err: '', busy: true });
-        Layout.setCurrent(s.cx); // admin / staff / resident хуудас энэ хотхоны map-ыг ачаална
+        // session: эрх + хотхон (admin / staff / resident хуудас энэ хотхоны map-ыг ачаална)
+        Api.login(s.role, s.cx, s.id.trim());
         setTimeout(() => (location.href = R.go), 650);
       },
     },

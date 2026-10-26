@@ -1,5 +1,6 @@
 /* СӨХ Platform — Ажилтан (staff.html) */
 (function () {
+  if (!Api.guard('staff')) return; // өөр эрхтэй хэрэглэгч → өөрийнх нь хуудас
   const { html, cx } = Nar;
   const { ic, seg, prio } = Shell;
   const { REQ_STATUS, ME_STAFF, ago } = D;

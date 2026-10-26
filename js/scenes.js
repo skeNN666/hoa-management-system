@@ -204,9 +204,20 @@
     guest: '#F0B03E',
     res: '#7C5CFC',
     mine: '#2F8FE0',
+    own: '#14B8A6', // айлд түрээслүүлсэн, одоо хоосон
   };
   const targetOf = (sl) =>
-    sl.mine ? 'mine' : sl.st === 3 ? 'res' : sl.st === 1 ? 'occ' : sl.st === 2 ? 'guest' : 'free';
+    sl.mine
+      ? 'mine'
+      : sl.st === 3
+        ? 'res'
+        : sl.st === 1
+          ? 'occ'
+          : sl.st === 2
+            ? 'guest'
+            : sl.own
+              ? 'own'
+              : 'free';
   function lotCtl(B, root, o) {
     const padG = new THREE.Group(),
       carG = new THREE.Group();
@@ -837,10 +848,6 @@
           w = b.w,
           d = b.d;
         const wall = sel ? '#F4C536' : color;
-        const tx = facadeTexture(night, wall),
-          tz = facadeTexture(night, wall);
-        tx.repeat.set(Math.max(1, Math.round(d / 1.2)), b.fl / 2);
-        tz.repeat.set(Math.max(1, Math.round(w / 1.2)), b.fl / 2);
         const side = (t) =>
           mat('#fff', {
             map: t,
@@ -851,77 +858,95 @@
             metalness: 0.08,
           });
         const roofM = mat(night ? '#2E3555' : shade(wall, -0.18), { roughness: 0.9 });
-        const g = new THREE.Group();
-        g.position.set(b.x + w / 2, 0.3, b.z + d / 2);
-        g.userData.click = ['b', i];
-        const geo = new THREE.BoxGeometry(w, h, d);
-        geo.translate(0, h / 2, 0);
-        const m = new THREE.Mesh(geo, [side(tx), side(tx), roofM, roofM, side(tz), side(tz)]);
-        m.castShadow = m.receiveShadow = true;
-        g.add(m);
-        // доод давхар — бараан шилэн суурь
-        const pod = box(
-          w + 0.4,
-          1.25,
-          d + 0.4,
-          mat(night ? '#3A4468' : '#47505E', {
-            roughness: 0.25,
-            metalness: 0.4,
-            emissive: night ? '#FFB860' : '#000',
-            emissiveIntensity: night ? 0.12 : 0,
-          }),
-        );
-        pod.position.y = 0.62;
-        pod.castShadow = pod.receiveShadow = true;
-        g.add(pod);
-        // дээврийн хашлага, тоног төхөөрөмж, нарны хавтан
-        const par = mat(night ? '#3A4266' : shade(wall, -0.1));
-        [
-          [w, 0.4, 0.16, 0, d / 2],
-          [w, 0.4, 0.16, 0, -d / 2],
-          [0.16, 0.4, d, w / 2, 0],
-          [0.16, 0.4, d, -w / 2, 0],
-        ].forEach(([a, bb, c, x, z]) => {
-          const p = box(a, bb, c, par);
-          p.position.set(x, h + 0.2, z);
-          g.add(p);
+        const podM = mat(night ? '#3A4468' : '#47505E', {
+          roughness: 0.25,
+          metalness: 0.4,
+          emissive: night ? '#FFB860' : '#000',
+          emissiveIntensity: night ? 0.12 : 0,
         });
-        const mech = box(
-          Math.min(2.2, w * 0.3),
-          0.9,
-          Math.min(1.8, d * 0.35),
-          mat('#B9BEC6', { roughness: 0.6, metalness: 0.3 }),
-        );
-        mech.position.set(-w * 0.2, h + 0.45, -d * 0.12);
-        mech.castShadow = true;
-        g.add(mech);
-        const solarM = mat('#22406E', { roughness: 0.2, metalness: 0.5 });
-        const nS = Math.max(1, Math.floor((w * 0.4) / 1.3));
-        for (let k = 0; k < nS; k++) {
-          const sp = box(1.1, 0.06, Math.min(1.6, d * 0.4), solarM);
-          sp.position.set(w * 0.08 + k * 1.3 - (nS * 1.3) / 2 + w * 0.15, h + 0.35, d * 0.15);
-          sp.rotation.x = -0.35;
-          g.add(sp);
+        const par = mat(night ? '#3A4266' : shade(wall, -0.1));
+        const g = new THREE.Group();
+        const cx = b.x + w / 2,
+          cz = b.z + d / 2;
+        g.position.set(cx, 0.3, cz);
+        g.userData.click = ['b', i];
+        // байрны хэсэг бүр (тэгш өнцөгт 1, L 2, U 3) — фасад, суурь, дээврийн хашлагатай
+        const parts = Layout.partsOf(b);
+        let main = null;
+        parts.forEach((q) => {
+          const px = q.x + q.w / 2 - cx,
+            pz = q.z + q.d / 2 - cz;
+          const tx = facadeTexture(night, wall),
+            tz = facadeTexture(night, wall);
+          tx.repeat.set(Math.max(1, Math.round(q.d / 1.2)), b.fl / 2);
+          tz.repeat.set(Math.max(1, Math.round(q.w / 1.2)), b.fl / 2);
+          const geo = new THREE.BoxGeometry(q.w, h, q.d);
+          geo.translate(px, h / 2, pz);
+          const m = new THREE.Mesh(geo, [side(tx), side(tx), roofM, roofM, side(tz), side(tz)]);
+          m.castShadow = m.receiveShadow = true;
+          g.add(m);
+          if (!main || q.w * q.d > main.q.w * main.q.d) main = { m, q, px, pz };
+          // доод давхар — бараан шилэн суурь
+          const pod = box(q.w + 0.4, 1.25, q.d + 0.4, podM);
+          pod.position.set(px, 0.62, pz);
+          pod.castShadow = pod.receiveShadow = true;
+          g.add(pod);
+          [
+            [q.w, 0.4, 0.16, 0, q.d / 2],
+            [q.w, 0.4, 0.16, 0, -q.d / 2],
+            [0.16, 0.4, q.d, q.w / 2, 0],
+            [0.16, 0.4, q.d, -q.w / 2, 0],
+          ].forEach(([a, bb, c, x, z]) => {
+            const p = box(a, bb, c, par);
+            p.position.set(px + x, h + 0.2, pz + z);
+            g.add(p);
+          });
+        });
+        // дээврийн тоног төхөөрөмж, нарны хавтан — хамгийн том хэсэг дээр
+        {
+          const { q, px, pz } = main;
+          const mech = box(
+            Math.min(2.2, q.w * 0.3),
+            0.9,
+            Math.min(1.8, q.d * 0.35),
+            mat('#B9BEC6', { roughness: 0.6, metalness: 0.3 }),
+          );
+          mech.position.set(px - q.w * 0.2, h + 0.45, pz - q.d * 0.12);
+          mech.castShadow = true;
+          g.add(mech);
+          const solarM = mat('#22406E', { roughness: 0.2, metalness: 0.5 });
+          const nS = Math.max(1, Math.floor((q.w * 0.4) / 1.3));
+          for (let k = 0; k < nS; k++) {
+            const sp = box(1.1, 0.06, Math.min(1.6, q.d * 0.4), solarM);
+            sp.position.set(
+              px + q.w * 0.08 + k * 1.3 - (nS * 1.3) / 2 + q.w * 0.15,
+              h + 0.35,
+              pz + q.d * 0.15,
+            );
+            sp.rotation.x = -0.35;
+            g.add(sp);
+          }
         }
-        // орцны саравч + гэрэлтэй хаалга (layout-ын door тал руу)
+        // орц бүрт саравч + гэрэлтэй хаалга (layout-ын door тал руу, entr тоогоор)
         const [dx, dz] = DOOR[b.door] || DOOR.s;
-        const ox = (dx * w) / 2,
-          oz = (dz * d) / 2;
-        const can = box(dx ? 1.3 : 2.6, 0.12, dx ? 2.6 : 1.3, mat('#F2F2EE', { roughness: 0.4 }));
-        can.position.set(ox + dx * 0.85, 1.5, oz + dz * 0.85);
-        can.castShadow = true;
-        g.add(can);
-        const door = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.4, 1.1),
-          mat('#FFE7B0', { emissive: '#FFD27A', emissiveIntensity: night ? 1.4 : 0.35 }),
-        );
-        door.position.set(ox + dx * 0.21, 0.62, oz + dz * 0.21);
-        door.rotation.y = Math.atan2(dx, dz);
-        g.add(door);
+        const canM = mat('#F2F2EE', { roughness: 0.4 }),
+          doorM = mat('#FFE7B0', { emissive: '#FFD27A', emissiveIntensity: night ? 1.4 : 0.35 });
+        Layout.doorsOf(b).forEach((q) => {
+          const ox = q.x - cx - dx * 0.9,
+            oz = q.z - cz - dz * 0.9; // ханан дээрх цэг
+          const can = box(dx ? 1.3 : 2.6, 0.12, dx ? 2.6 : 1.3, canM);
+          can.position.set(ox + dx * 0.85, 1.5, oz + dz * 0.85);
+          can.castShadow = true;
+          g.add(can);
+          const door = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.1), doorM);
+          door.position.set(ox + dx * 0.21, 0.62, oz + dz * 0.21);
+          door.rotation.y = Math.atan2(dx, dz);
+          g.add(door);
+        });
         if (s.mode === 'leak' && leakB.has(b.n)) {
-          alarm.push(m);
+          alarm.push(main.m);
           const pl = new THREE.PointLight('#FF5A4E', 30, 14);
-          pl.position.set(ox + dx, h / 2, oz + dz);
+          pl.position.set((dx * w) / 2 + dx, h / 2, (dz * d) / 2 + dz);
           g.add(pl);
         }
         blds.add(g);
@@ -1329,7 +1354,10 @@
       });
       ctl.sync(list, inited);
       inited = true;
-      const k = list.map((x) => x.st + (x.mine ? 'm' : '') + x.sens).join('') + '|' + s.selected;
+      const k =
+        list.map((x) => x.st + (x.mine ? 'm' : '') + (x.own || '') + x.sens).join('') +
+        '|' +
+        s.selected;
       if (k !== key) {
         key = k;
         B.clear(labelsG);
@@ -1337,19 +1365,19 @@
           const a = spots[sl.id];
           const g = new THREE.Group();
           labelsG.add(g);
-          if ((sl.st === 0 && i % 2 === 0) || sl.st === 3 || sl.mine) {
+          const ownFree = sl.own && sl.st === 0 && !sl.mine;
+          if ((sl.st === 0 && !sl.own && i % 2 === 0) || sl.st === 3 || sl.mine || ownFree) {
             const t = sl.mine
               ? sl.st === 1
                 ? 'Таны машин'
                 : 'Таны захиалга'
               : sl.st === 3
                 ? '⏱'
-                : 'P';
-            B.label(g, t, 'p3-tag ' + (sl.mine ? 'mine' : sl.st === 3 ? 'res' : 'free'), [
-              a.x,
-              sl.st === 1 ? 3 : 1.6,
-              a.z,
-            ]);
+                : ownFree
+                  ? 'Түрээс · ' + sl.own
+                  : 'P';
+            const tc = sl.mine ? 'mine' : sl.st === 3 ? 'res' : ownFree ? 'own' : 'free';
+            B.label(g, t, 'p3-tag ' + tc, [a.x, sl.st === 1 ? 3 : 1.6, a.z]);
           }
           B.label(g, sl.id, 'p3-id', [a.x, 0.05, a.top ? a.z - sd / 2 + 0.9 : a.z + sd / 2 - 0.9]);
           // мэдрэгчийн өнгө (харагдах төлөвөөр)

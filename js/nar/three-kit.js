@@ -24,7 +24,9 @@
       this.pinch = 0;
       this.moved = 0;
       dom.addEventListener('pointerdown', (e) => {
-        dom.setPointerCapture(e.pointerId);
+        try {
+          dom.setPointerCapture(e.pointerId);
+        } catch (err) {} // зарим төхөөрөмж дэмжихгүй
         this.ptrs.set(e.pointerId, [e.clientX, e.clientY]);
         this.moved = 0;
       });

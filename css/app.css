@@ -586,6 +586,9 @@
 .p3-tag.free {
   background: #2eae68;
 }
+.p3-tag.own {
+  background: #14b8a6;
+}
 .p3-id {
   font-size: 9.5px;
   font-weight: 900;
@@ -2721,4 +2724,118 @@
   .ly-3d {
     height: 620px;
   }
+}
+
+/* builder: хэмжээ өөрчлөх бариул, зам, дэвсгэр зураг, хэрэгслийн мөр */
+.ly-svg {
+  cursor: grab;
+}
+.ly-rz {
+  fill: #f4c536;
+  stroke: #8f5500;
+  stroke-width: 0.2;
+  cursor: nwse-resize;
+}
+.ly-ghost {
+  fill: rgba(244, 197, 54, 0.25);
+  stroke: #f4c536;
+  stroke-width: 0.3;
+  stroke-dasharray: 0.8 0.5;
+  pointer-events: none;
+}
+.ly-dr.rh {
+  cursor: ns-resize;
+}
+.ly-dr.rv {
+  cursor: ew-resize;
+}
+.ly-dr:hover .ly-road,
+.ly-road.sel {
+  fill: #3f4a63;
+}
+.ly-road.sel {
+  stroke: #f4c536;
+  stroke-width: 0.4;
+}
+.ly-bg {
+  pointer-events: none;
+}
+.ly-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--line);
+}
+.ly-tools .btn[disabled] {
+  opacity: 0.45;
+}
+
+/* зогсоолын түрээс */
+.rent-chip {
+  background: color-mix(in srgb, #14b8a6 16%, transparent);
+  color: #0f8f81;
+}
+
+/* 3D map-ын карт: айл бүрийн тор */
+.mc-units {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.mc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.mc-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mc-row > span {
+  width: 16px;
+  font-size: 9px;
+  color: #b9b2a2;
+  text-align: right;
+}
+.mc-row > div {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--per, 13), minmax(0, 1fr));
+  gap: 2px;
+}
+.mc-u {
+  display: inline-block;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 2px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: #2eae68;
+}
+.mc-u.warn {
+  background: #f0b03e;
+}
+.mc-u.bad {
+  background: #e0525a;
+}
+.mc-u.wet {
+  background: #4fb0f5;
+  box-shadow: 0 0 0 1px #fff;
+  animation: pulse2 1.2s ease-in-out infinite;
+}
+.mc-u:hover {
+  outline: 1px solid #fff;
+}
+
+/* дэвсгэр зурагтай үед доорх зургийг харж зурахын тулд */
+.ly-svg.has-bg .ly-lawn {
+  opacity: 0.25;
+}
+.ly-svg.has-bg .ly-pad {
+  opacity: 0.45;
 }

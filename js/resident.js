@@ -1,5 +1,6 @@
 /* СӨХ Platform — Оршин суугч (resident.html) */
 (function () {
+  if (!Api.guard('resident')) return; // өөр эрхтэй хэрэглэгч → өөрийнх нь хуудас
   const { html, cx } = Nar;
   const { ic, seg } = Shell;
   const { ME, REQ_STATUS } = D;
@@ -25,6 +26,7 @@
     const myLeak = s.leaks.find((x) => x.b === ME.b && x.u === ME.n && x.st !== 'fixed');
     const life = Math.round((1 - (s.paid ? 0 : s.wilt)) * 100);
     const park = s.park;
+    const rentSlot = S.slotOf(ME.b, ME.n); // СӨХ-өөс айлд хуваарилсан түрээсийн зогсоол
     const curMsg = cur
       ? [
           `Хүсэлт СӨХ-д илгээгдлээ, хүлээн авахыг хүлээж байна`,
@@ -101,7 +103,12 @@
                   : free
                     ? free + ' сул зогсоол байна'
                     : 'Сул зогсоол алга'}</b
-            ></a
+            >${rentSlot
+              ? html`<span class="chip rent-chip self-start"
+                  >Таны түрээсийн зогсоол · <b class="num">${rentSlot.id}</b> ·
+                  ${D.money(rentSlot.fee || 0)}/сар</span
+                >`
+              : ''}</a
           >
           <section class="${cx('card p4 col g3 jb', myLeak && myLeak.st === 'active' && 'hot')}">
             <div class="flex jb ic">
@@ -369,7 +376,16 @@
     const mm = Math.floor(p.hold / 60),
       ss = String(p.hold % 60).padStart(2, '0');
     let side = '';
-    if (p.stage === 'idle')
+    const rs = S.slotOf(ME.b, ME.n);
+    if (p.stage === 'idle' && rs && rs.st === 0)
+      side = html`<span class="chip icon xl rent-chip t18 b9">${rs.id}</span
+        ><b class="t18">Таны түрээсийн зогсоол сул байна</b>
+        <p class="muted t13">
+          ${rs.id} нь танд сар бүр ${D.money(rs.fee || 0)}-өөр хуваарилагдсан. Шууд очиж зогсоно уу
+          — мэдрэгч машиныг өөрөө бүртгэнэ.
+        </p>
+        <button class="btn p" data-act="reserve" data-arg="${rs.id}">Одоо ашиглах</button>`;
+    else if (p.stage === 'idle')
       side = free
         ? html`<span class="chip icon xl c-ok t20 b9">P</span
             ><b class="t18">${free} сул зогсоол байна</b>

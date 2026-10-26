@@ -25,11 +25,25 @@
   const NB = BL.length;
   const unitOf = (b, k) => 1 + ((k - 1) % BL[b - 1].units);
 
+  /** Жишээ: гадна зогсоолын хэдийг айлд сар бүр түрээслүүлсэн (нэг нь Батынх) */
+  function seedRent(list) {
+    const P = list.filter((x) => x.zone === 'p');
+    const meKey = ME.b + '-' + ME.n;
+    [6, 13, 20, 27, 34, 41].forEach((i, k) => {
+      const s = P[i];
+      if (!s) return;
+      const b = (k % NB) + 1;
+      s.own = k === 0 ? meKey : b + '-' + unitOf(b, 11 + k * 23);
+      s.fee = 60000;
+      if (k === 0) Object.assign(s, { st: 0, plate: '' }); // Батын зогсоол одоогоор хоосон
+    });
+    return list;
+  }
   function fresh() {
     return {
       sec: 0,
       theme: null,
-      slots: D.makeSlots(),
+      slots: seedRent(D.makeSlots()),
       lights: D.LIGHTS.map((l) => ({ ...l })),
       leaks: [
         {
@@ -130,7 +144,7 @@
   // хотхон солигдох эсвэл бүтэц нь өөрчлөгдвөл өгөгдөл шинээр үүснэ (theme хадгалагдана)
   const store = Nar.createStore({
     key: KEY,
-    version: '5:' + Layout.rev(D.LAYOUT),
+    version: '6:' + Layout.rev(D.LAYOUT),
     init: fresh,
     keep: ['theme'],
   });
@@ -394,10 +408,54 @@
     reserveSlot(id) {
       const s = st.slots.find((x) => x.id === id);
       if (!s || s.st !== 0) return;
-      Object.assign(s, { st: 3, mine: true, plate: ME.plate, unit: '5-34' });
+      if (s.own && s.own !== ME.b + '-' + ME.n)
+        return S.toast(
+          id + ' түрээсийн зогсоол',
+          'Өөр айлд хуваарилагдсан тул захиалах боломжгүй',
+          'warn',
+        );
+      Object.assign(s, { st: 3, mine: true, plate: ME.plate, unit: ME.b + '-' + ME.n });
       st.park = { stage: 'reserved', slot: id, hold: 600, pos: 0 };
       emit(['slots', 'park']);
       S.toast(id + ' захиалагдлаа', '10 минутын дотор очиж зогсоно уу', 'acc');
+    },
+    /** Зогсоолыг айлд сар бүрийн төлбөртэй хуваарилах ("5-34" = 5-р байр 34 тоот) */
+    assignSlot(id, key, fee) {
+      const s = st.slots.find((x) => x.id === id);
+      const m = /^(\d+)\s*-\s*(\d+)$/.exec(String(key).trim());
+      if (!s || !m) return S.toast('Буруу тоот', 'Жишээ нь 5-34 гэж бичнэ үү', 'warn');
+      const b = Number(m[1]),
+        n = Number(m[2]);
+      if (!units[b - 1] || !units[b - 1][n - 1])
+        return S.toast('Ийм айл алга', b + '-р байр ' + n + ' тоот бүртгэлгүй байна', 'warn');
+      if (st.slots.some((x) => x.own === b + '-' + n && x.id !== id))
+        return S.toast('Давхардсан', 'Энэ айл аль хэдийн зогсоол түрээсэлсэн', 'warn');
+      Object.assign(s, { own: b + '-' + n, fee: Math.max(0, Number(fee) || 0) });
+      if (b === ME.b && n === ME.n)
+        S.notify('resident', 'ok', id + ' танд хуваарилагдлаа', 'Сарын төлбөр ' + D.money(s.fee));
+      emit(['slots', 'notifs']);
+      S.toast(
+        id + ' хуваарилагдлаа',
+        b + '-р байр ' + n + ' тоот · ' + D.money(s.fee) + '/сар',
+        'ok',
+      );
+    },
+    unassignSlot(id) {
+      const s = st.slots.find((x) => x.id === id);
+      if (!s) return;
+      delete s.own;
+      delete s.fee;
+      emit(['slots']);
+      S.toast(id + ' чөлөөлөгдлөө', 'Түрээсийн хуваарилалт цуцлагдлаа', 'warn');
+    },
+    /** Түрээсийн нийт сарын орлого */
+    rentIncome() {
+      const L = st.slots.filter((x) => x.own);
+      return { n: L.length, sum: L.reduce((a, x) => a + (x.fee || 0), 0) };
+    },
+    /** Тухайн айлын түрээсийн зогсоол */
+    slotOf(b, n) {
+      return st.slots.find((x) => x.own === b + '-' + n) || null;
     },
     parkNotify() {
       st.park = { stage: 'waiting', slot: '', hold: 0, pos: 2 };
@@ -625,7 +683,7 @@
         // demo: гадна зогсоол, гаражид ээлжлэн машин орж ирнэ / гарч явна
         const zone = sec % 8 === 0 ? 'p' : 'g';
         const outs = st.slots.filter(
-          (x) => x.zone === zone && !x.mine && x.st !== 3 && x.sens !== 'off',
+          (x) => x.zone === zone && !x.mine && !x.own && x.st !== 3 && x.sens !== 'off',
         );
         const c = outs[(sec * 7) % Math.max(1, outs.length)]; // гаражгүй хотхонд хоосон
         if (c && c.st === 0)

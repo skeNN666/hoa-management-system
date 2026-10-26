@@ -647,6 +647,9 @@
           per,
           units: clamp(Math.round(n(b.units, fl * per)), 1, 2000),
           door: 'nsew'.includes(b.door) && b.door ? b.door : 's',
+          shape: ['L', 'U'].includes(b.shape) ? b.shape : 'rect',
+          rot: clamp(Math.round(n(b.rot, 0)), 0, 3),
+          entr: clamp(Math.round(n(b.entr, 1)), 1, 4),
         };
       }),
       parks: (j.parks || []).map((p) => ({
@@ -675,6 +678,17 @@
       })),
       trees: (j.trees || []).map((t) => [n(t[0], 0), n(t[1], 0), t[2] ? 1 : 0]),
       spec: j.spec || { text: 'Гаднаас оруулсан JSON' },
+      bg:
+        j.bg && /^data:image\//.test(j.bg.src)
+          ? {
+              src: j.bg.src,
+              x: n(j.bg.x, 0),
+              z: n(j.bg.z, 0),
+              w: n(j.bg.w, 84),
+              d: n(j.bg.d, 64),
+              op: n(j.bg.op, 0.6),
+            }
+          : undefined,
     };
     if (!L.sokh) L.sokh = L.n.replace(/\s*хотхон$/, '') + ' СӨХ';
     (j.lots || []).forEach((l, i) => {
@@ -1138,19 +1152,25 @@
   const snap = (v) => Math.round(v * 2) / 2; // 0.5 нэгжийн тор
   function itemOf(L, key) {
     const [t, i] = String(key).split(':');
-    const arr = t === 'b' ? L.buildings : t === 'p' ? L.parks : t === 'l' ? L.lots : null;
+    const arr = { b: L.buildings, p: L.parks, l: L.lots, r: L.roads }[t];
     const it = arr && arr[Number(i)];
     if (!it) return null;
     return {
       t,
       i: Number(i),
       it,
-      r: t === 'l' ? lotRect(it) : { x: it.x, z: it.z, w: it.w, d: it.d },
+      r:
+        t === 'l' ? lotRect(it) : t === 'r' ? roadRect(it) : { x: it.x, z: it.z, w: it.w, d: it.d },
     };
   }
   /** x,z-д байрлуулж болох эсэх (бусад объект, замтай давхцахгүй) */
   function canPlace(L, key, x, z) {
     const o = itemOf(L, key);
+    if (o && o.t === 'r') {
+      const rd = o.it,
+        pos = snap(isH(rd) ? z + rd.w / 2 : x + rd.w / 2);
+      return roadFree(L, isH(rd) ? { ...rd, z1: pos, z2: pos } : { ...rd, x1: pos, x2: pos }, rd);
+    }
     return !!o && isFree(L, { x: snap(x), z: snap(z), w: o.r.w, d: o.r.d }, o.it);
   }
   /** Зогсоолын орох эгнээг хамгийн ойрын төв зам руу тааруулна */
@@ -1166,6 +1186,7 @@
   function moveItem(L, key, x, z) {
     const o = itemOf(L, key);
     if (!o) return { ok: false, msg: 'Объект олдсонгүй' };
+    if (o.t === 'r') return moveRoad(L, o.i, isH(o.it) ? z + o.it.w / 2 : x + o.it.w / 2);
     x = snap(x);
     z = snap(z);
     const nr = { x, z, w: o.r.w, d: o.r.d };
@@ -1254,6 +1275,7 @@
   function removeItem(L, key) {
     const o = itemOf(L, key);
     if (!o) return { ok: false };
+    if (o.t === 'r') return removeRoad(L, o.i);
     L.lights = L.lights.filter((l) => !inRect(l.x, l.z, o.r, o.t === 'l' ? 2.5 : 0.5));
     if (o.t === 'b') {
       L.buildings.splice(o.i, 1);
@@ -1267,13 +1289,17 @@
   /** 90° эргүүлэх (өргөн ↔ гүн); байрны орц ч дагаж эргэнэ */
   function rotateItem(L, key) {
     const o = itemOf(L, key);
-    if (!o || o.t === 'l') return { ok: false, msg: 'Зогсоолыг эргүүлэх боломжгүй' };
+    if (!o || o.t === 'l' || o.t === 'r')
+      return { ok: false, msg: 'Зогсоол, замыг эргүүлэх боломжгүй' };
     const cx = o.r.x + o.r.w / 2,
       cz = o.r.z + o.r.d / 2;
     const nr = { x: snap(cx - o.r.d / 2), z: snap(cz - o.r.w / 2), w: o.r.d, d: o.r.w };
     if (!isFree(L, nr, o.it)) return { ok: false, msg: 'Эргүүлэхэд зай хүрэлцэхгүй' };
     Object.assign(o.it, nr);
-    if (o.t === 'b') o.it.door = { n: 'e', e: 's', s: 'w', w: 'n' }[o.it.door] || 's';
+    if (o.t === 'b') {
+      o.it.door = { n: 'e', e: 's', s: 'w', w: 'n' }[o.it.door] || 's';
+      if (o.it.shape && o.it.shape !== 'rect') o.it.rot = ((o.it.rot || 0) + 1) % 4;
+    }
     clearUnder(L, nr);
     fitBounds(L);
     return { ok: true };
@@ -1296,6 +1322,239 @@
     sp.slots = slots(L);
     sp.play = L.parks.some((p) => p.kind === 'play');
     sp.sport = L.parks.some((p) => p.kind === 'sport');
+  }
+
+  /* ======================================================================
+     Байрны хэлбэр (тэгш өнцөгт / L / U), олон орц, хэмжээ өөрчлөх
+     shape: 'rect' | 'L' | 'U', rot: 0–3 (хэлбэрийн чиглэл), entr: орцны тоо 1–4
+     ====================================================================== */
+  /** Байрны барилгын хэсгүүд (тэгш өнцөгтүүд) — 2D, 3D хоёулаа үүнээс зурна */
+  function partsOf(b) {
+    const { x, z, w, d } = b;
+    if (!b.shape || b.shape === 'rect') return [{ x, z, w, d }];
+    const t = r1(Math.max(3, Math.min(w, d) * 0.42)); // далавчийн зузаан
+    const top = { x, z, w, d: t },
+      bottom = { x, z: z + d - t, w, d: t },
+      left = { x, z, w: t, d },
+      right = { x: x + w - t, z, w: t, d };
+    const rot = (b.rot || 0) % 4;
+    // L: бүтэн нэг далавч + түүнд перпендикуляр богино далавч (давхцахгүй)
+    if (b.shape === 'L')
+      return [
+        [bottom, { x, z, w: t, d: d - t }],
+        [left, { x: x + t, z, w: w - t, d: t }],
+        [top, { x: x + w - t, z: z + t, w: t, d: d - t }],
+        [right, { x, z: z + d - t, w: w - t, d: t }],
+      ][rot];
+    // U: хоёр далавч + суурь; rot нь задгай талын чиглэл (0 хойд, 1 зүүн, 2 урд, 3 баруун)
+    return [
+      [bottom, { x, z, w: t, d: d - t }, { x: x + w - t, z, w: t, d: d - t }],
+      [left, { x: x + t, z, w: w - t, d: t }, { x: x + t, z: z + d - t, w: w - t, d: t }],
+      [top, { x, z: z + t, w: t, d: d - t }, { x: x + w - t, z: z + t, w: t, d: d - t }],
+      [right, { x, z, w: w - t, d: t }, { x, z: z + d - t, w: w - t, d: t }],
+    ][rot];
+  }
+  /** Орц бүрийн цэг (хаалганы талд жигд хуваарилна) */
+  function doorsOf(b) {
+    const n = clamp(b.entr || 1, 1, 4);
+    const D0 = doorOf(b);
+    const along = D0.dir[0] === 0; // хойд/урд талд бол x-ийн дагуу
+    const len = along ? b.w : b.d;
+    return Array.from({ length: n }, (_, k) => {
+      const o = ((k + 0.5) / n - 0.5) * len;
+      return { ...D0, x: along ? D0.cx + o : D0.x, z: along ? D0.z : D0.cz + o };
+    });
+  }
+  function setShape(L, key, shape) {
+    const o = itemOf(L, key);
+    if (!o || o.t !== 'b') return { ok: false };
+    if (shape !== 'rect' && Math.min(o.it.w, o.it.d) < 8) {
+      // L, U хэлбэрт хангалттай том талбай хэрэгтэй — эхлээд томруулна, болохгүй бол хэвээр
+      const r = resizeItem(L, key, Math.max(o.it.w, 12), Math.max(o.it.d, 12));
+      if (!r.ok)
+        return { ok: false, msg: 'L / U хэлбэрт зай хүрэлцэхгүй — байрыг чөлөөтэй газар зөөнө үү' };
+    }
+    o.it.shape = shape;
+    o.it.rot = o.it.rot || 0;
+    return { ok: true, msg: { rect: 'Тэгш өнцөгт', L: 'L хэлбэр', U: 'U хэлбэр' }[shape] };
+  }
+  function setEntr(L, key, n) {
+    const o = itemOf(L, key);
+    if (!o || o.t !== 'b') return { ok: false };
+    o.it.entr = clamp(Math.round(n), 1, 4);
+    return { ok: true };
+  }
+  /** Хэмжээ өөрчлөх (баруун-хойд булан хөдлөхгүй) */
+  function resizeItem(L, key, w, d) {
+    const o = itemOf(L, key);
+    if (!o || o.t === 'l' || o.t === 'r')
+      return { ok: false, msg: 'Энэ объектын хэмжээг өөрчлөх боломжгүй' };
+    const min = o.t === 'b' ? 4 : 6;
+    w = Math.max(min, snap(w));
+    d = Math.max(min, snap(d));
+    const nr = { x: o.r.x, z: o.r.z, w, d };
+    if (!isFree(L, nr, o.it)) return { ok: false, msg: 'Томруулахад зай хүрэлцэхгүй' };
+    Object.assign(o.it, { w, d });
+    clearUnder(L, nr);
+    dropEmptyPads(L);
+    fitBounds(L);
+    return { ok: true };
+  }
+
+  /* ======================================================================
+     Зам: нэмэх, зөөх (перпендикуляр чиглэлд), устгах. key 'r:i'
+     ====================================================================== */
+  /** Бетон талбайнуудыг объект бүрээр шинээр байгуулна (зам өөрчлөгдсөний дараа) */
+  function rebuildPads(L) {
+    L.pads = [];
+    L.buildings
+      .concat(L.parks)
+      .concat(L.lots.map(lotRect))
+      .forEach((r) => L.pads.push(padFor(L, r)));
+  }
+  /** Зам r-ийн байрлалд объект, зэрэгцээ замтай давхцахгүй эсэх */
+  function roadFree(L, rd, skip) {
+    const rr = roadRect(rd);
+    const R = L.buildings.concat(L.parks).concat(L.lots.map(lotRect));
+    if (R.some((q) => hit(rr, q, 0.8))) return false;
+    return !L.roads.some(
+      (o) =>
+        o !== skip && isH(o) === isH(rd) && Math.abs(isH(rd) ? o.z1 - rd.z1 : o.x1 - rd.x1) < 7,
+    );
+  }
+  function afterRoads(L) {
+    L.trees = L.trees.filter((t) => !L.roads.some((rd) => inRect(t[0], t[1], roadRect(rd), 1.2)));
+    L.lights = L.lights.filter((l) => !L.roads.some((rd) => inRect(l.x, l.z, roadRect(rd), 0.4)));
+    L.lots.forEach((l) => fixLot(L, l));
+    rebuildPads(L);
+    fitBounds(L);
+  }
+  function roadLights(L, rd) {
+    const [W, Dp] = L.size;
+    const h = isH(rd);
+    let k = 0;
+    for (let u = (h ? -W : -Dp) / 2 + 5; u < (h ? W : Dp) / 2 - 4; u += 9.5) {
+      const off = k++ % 2 ? 3.3 : -3.3;
+      const p = h ? { x: u, z: rd.z1 + off } : { x: rd.x1 + off, z: u };
+      if (L.roads.some((o) => o !== rd && inRect(p.x, p.z, roadRect(o), 1.5))) continue;
+      const R = L.buildings.concat(L.parks).concat(L.lots.map(lotRect));
+      if (R.some((q) => inRect(p.x, p.z, q, 0.8))) continue;
+      L.lights.push({
+        x: r1(p.x),
+        z: r1(p.z),
+        loc: (h ? 'Гол зам · ' : 'Төв зам · ') + nearName(L, p.x, p.z),
+      });
+    }
+  }
+  function addRoad(L, dir, pos) {
+    const [W, Dp] = L.size;
+    const h = dir === 'h';
+    if (pos == null) {
+      // хоосон шугамыг төвөөс эхлэн хайна
+      const lim = (h ? Dp : W) / 2;
+      for (let k = 0; k < lim * 4; k++) {
+        const p = ((k % 2 ? 1 : -1) * Math.ceil(k / 2)) / 2;
+        const rd = h
+          ? { x1: -W / 2, z1: p, x2: W / 2, z2: p, w: RW }
+          : { x1: p, z1: -Dp / 2, x2: p, z2: Dp / 2, w: VW };
+        if (roadFree(L, rd)) {
+          pos = p;
+          break;
+        }
+      }
+      if (pos == null) {
+        // map дотор зай алга → захын объектын цаана (map томорно)
+        const R = L.buildings.concat(L.parks).concat(L.lots.map(lotRect));
+        pos = h
+          ? Math.max(...R.map((q) => q.z + q.d)) + RW / 2 + 3.5
+          : Math.max(...R.map((q) => q.x + q.w)) + VW / 2 + 3.5;
+      }
+    }
+    pos = snap(pos);
+    const rd = h
+      ? { x1: -W / 2, z1: pos, x2: W / 2, z2: pos, w: RW }
+      : { x1: pos, z1: -Dp / 2, x2: pos, z2: Dp / 2, w: VW };
+    if (!roadFree(L, rd))
+      return { ok: false, msg: 'Зам байр, талбай эсвэл өөр замтай давхцаж байна' };
+    L.roads.push(rd);
+    afterRoads(L);
+    roadLights(L, rd);
+    return {
+      ok: true,
+      key: 'r:' + (L.roads.length - 1),
+      msg: (h ? 'Хэвтээ' : 'Босоо') + ' зам нэмлээ',
+    };
+  }
+  /** Замыг перпендикуляр чиглэлд зөөнө (хэвтээ → z, босоо → x) */
+  function moveRoad(L, i, pos) {
+    const rd = L.roads[i];
+    if (!rd) return { ok: false };
+    pos = snap(pos);
+    const h = isH(rd);
+    const old = h ? rd.z1 : rd.x1;
+    const nr = h ? { ...rd, z1: pos, z2: pos } : { ...rd, x1: pos, x2: pos };
+    if (!roadFree(L, nr, rd))
+      return { ok: false, msg: 'Зам объект эсвэл өөр замтай давхцаж байна' };
+    // замын гэрэл замтайгаа хамт
+    const band = roadRect(rd);
+    L.lights.forEach((l) => {
+      if (inRect(l.x, l.z, band, 4.2)) {
+        if (h) l.z = r1(l.z + pos - old);
+        else l.x = r1(l.x + pos - old);
+      }
+    });
+    Object.assign(rd, nr);
+    L.lots.forEach((l) => {
+      if (!h && Math.abs(l.lane - old) < 2) l.lane = r1(l.lane + pos - old);
+    });
+    afterRoads(L);
+    return { ok: true };
+  }
+  function removeRoad(L, i) {
+    if (L.roads.length <= 1) return { ok: false, msg: 'Дор хаяж нэг зам үлдэх ёстой' };
+    const rd = L.roads[i];
+    const band = roadRect(rd);
+    L.lights = L.lights.filter((l) => !inRect(l.x, l.z, band, 4.2) || !/зам/.test(l.loc));
+    L.roads.splice(i, 1);
+    afterRoads(L);
+    return { ok: true, msg: 'Зам устгалаа' };
+  }
+
+  /* ======================================================================
+     Дэвсгэр зураг (зураг төсөл, хиймэл дагуулын зураг) — 2D builder-т
+     bg: { src (dataURL), x, z, w, d, op }
+     ====================================================================== */
+  function setBg(L, src, aspect) {
+    if (!src) {
+      delete L.bg;
+      return { ok: true, msg: 'Дэвсгэр зургийг хаслаа' };
+    }
+    const [W, Dp] = L.size;
+    let w = W,
+      d = W / aspect;
+    if (d > Dp) {
+      d = Dp;
+      w = Dp * aspect;
+    }
+    L.bg = { src, x: r1(-w / 2), z: r1(-d / 2), w: r1(w), d: r1(d), op: 0.6 };
+    return { ok: true, msg: 'Дэвсгэр зураг нэмлээ' };
+  }
+  /** Дэвсгэрийн хэмжээ (төвөөрөө), байрлал, тунгалаг байдал */
+  function bgAdjust(L, p) {
+    const b = L.bg;
+    if (!b) return { ok: false };
+    if (p.scale) {
+      const cx = b.x + b.w / 2,
+        cz = b.z + b.d / 2;
+      b.w = r1(b.w * p.scale);
+      b.d = r1(b.d * p.scale);
+      b.x = r1(cx - b.w / 2);
+      b.z = r1(cz - b.d / 2);
+    }
+    if (p.dx) b.x = r1(b.x + p.dx);
+    if (p.dz) b.z = r1(b.z + p.dz);
+    if (p.op != null) b.op = clamp(p.op, 0.05, 1);
+    return { ok: true };
   }
 
   /* ======================================================================
@@ -1348,14 +1607,22 @@
     } catch (e) {}
   }
   /** Хотхон зөвхөн өөрийн id дээр map-аа хадгална (бусад хотхоны map-д хүрэхгүй) */
+  // server байвал эхлээд серверт (js/api.js), амжилттай бол localStorage-д. Promise<{ ok, msg }>
   function save(L) {
-    const list = readCustom().filter((x) => x.id !== L.id);
-    list.push(L);
-    localStorage.setItem(KEY, JSON.stringify(list));
+    const local = () => {
+      const list = readCustom().filter((x) => x.id !== L.id);
+      list.push(L);
+      localStorage.setItem(KEY, JSON.stringify(list));
+    };
+    if (!window.Api) return local(), Promise.resolve({ ok: true });
+    return window.Api.saveLayout(L).then((r) => (r.ok && local(), r));
   }
   /** Засварыг устгаж анхны map руу буцаана */
   function reset(id) {
-    localStorage.setItem(KEY, JSON.stringify(readCustom().filter((x) => x.id !== id)));
+    const local = () =>
+      localStorage.setItem(KEY, JSON.stringify(readCustom().filter((x) => x.id !== id)));
+    if (!window.Api) return local(), Promise.resolve({ ok: true });
+    return window.Api.resetLayout(id).then((r) => (r.ok && local(), r));
   }
   const isEdited = (id) => !!original(id) && readCustom().some((x) => x.id === id);
   const units = (L) => L.buildings.reduce((a, b) => a + b.units, 0);
@@ -1388,15 +1655,18 @@
       '" rx="' +
       rx +
       '"/>';
+    const vb = o.vb || { x: -W / 2, z: -Dp / 2, w: W, d: Dp }; // томруулах / гүйлгэх
     let s =
-      '<svg class="ly-svg" viewBox="' +
-      -W / 2 +
+      '<svg class="ly-svg' +
+      (L.bg ? ' has-bg' : '') + // дэвсгэр зурагтай үед талбай тунгалаг
+      '" viewBox="' +
+      vb.x +
       ' ' +
-      -Dp / 2 +
+      vb.z +
       ' ' +
-      W +
+      vb.w +
       ' ' +
-      Dp +
+      vb.d +
       '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' +
       e(L.n) +
       ' map">';
@@ -1410,13 +1680,35 @@
       '" height="' +
       Dp +
       '"/>';
+    if (L.bg)
+      s +=
+        '<image class="ly-bg" href="' +
+        e(L.bg.src) +
+        '" x="' +
+        L.bg.x +
+        '" y="' +
+        L.bg.z +
+        '" width="' +
+        L.bg.w +
+        '" height="' +
+        L.bg.d +
+        '" opacity="' +
+        L.bg.op +
+        '" preserveAspectRatio="none"/>';
     L.pads.forEach((p) => (s += R(p, 'ly-pad', 0.6)));
-    L.roads.forEach((rd) => {
+    // o.drag → builder: объект бүрийг чирж зөөх, дарж сонгох (data-drag="b:0", "p:1", "l:0", "r:0")
+    const G = (key, cls = '') =>
+      o.drag
+        ? '<g class="ly-dr' + cls + (o.sel === key ? ' on' : '') + '" data-drag="' + key + '">'
+        : '<g>';
+    const on = (key) => (o.sel === key ? ' sel' : '');
+    L.roads.forEach((rd, ri) => {
+      s += G('r:' + ri, isH(rd) ? ' rh' : ' rv');
       const h = isH(rd);
       const q = h
         ? { x: Math.min(rd.x1, rd.x2), z: rd.z1 - rd.w / 2, w: Math.abs(rd.x2 - rd.x1), d: rd.w }
         : { x: rd.x1 - rd.w / 2, z: Math.min(rd.z1, rd.z2), w: rd.w, d: Math.abs(rd.z2 - rd.z1) };
-      s += R(q, 'ly-road', 0);
+      s += R(q, 'ly-road' + on('r:' + ri), 0);
       s += h
         ? '<line class="ly-dash" x1="' +
           rd.x1 +
@@ -1436,6 +1728,7 @@
           '" y2="' +
           rd.z2 +
           '"/>';
+      s += '</g>';
     });
     L.trees.forEach(
       (t) =>
@@ -1451,12 +1744,6 @@
     L.lights.forEach(
       (l) => (s += '<circle class="ly-light" cx="' + l.x + '" cy="' + l.z + '" r="0.45"/>'),
     );
-    // o.drag → builder: объект бүрийг чирж зөөх, дарж сонгох (data-drag="b:0", "p:1", "l:0")
-    const G = (key) =>
-      o.drag
-        ? '<g class="ly-dr' + (o.sel === key ? ' on' : '') + '" data-drag="' + key + '">'
-        : '<g>';
-    const on = (key) => (o.sel === key ? ' sel' : '');
     L.parks.forEach((p, i) => {
       s += G('p:' + i) + R(p, (p.kind === 'play' ? 'ly-play' : 'ly-sport') + on('p:' + i), 1);
       s +=
@@ -1491,8 +1778,11 @@
     });
     L.buildings.forEach((b, i) => {
       const dr = doorOf(b);
-      s += G('b:' + i) + R(b, 'ly-b' + on('b:' + i), 0.5);
-      s += '<circle class="ly-door" cx="' + dr.x + '" cy="' + dr.z + '" r="0.55"/>';
+      s += G('b:' + i);
+      partsOf(b).forEach((q) => (s += R(q, 'ly-b' + on('b:' + i), 0.5)));
+      doorsOf(b).forEach(
+        (q) => (s += '<circle class="ly-door" cx="' + q.x + '" cy="' + q.z + '" r="0.55"/>'),
+      );
       s += '<text class="ly-t" x="' + dr.cx + '" y="' + (dr.cz + 0.6) + '">' + b.n + '</text>';
       s +=
         '<text class="ly-t sm fl" x="' +
@@ -1503,6 +1793,17 @@
         b.fl +
         'д</text></g>';
     });
+    // сонгосон байр / талбайн баруун-урд буланд хэмжээ өөрчлөх бариул
+    const so = o.drag && o.sel && itemOf(L, o.sel);
+    if (so && (so.t === 'b' || so.t === 'p'))
+      s +=
+        '<rect class="ly-rz" data-resize="' +
+        o.sel +
+        '" x="' +
+        (so.r.x + so.r.w - 0.9) +
+        '" y="' +
+        (so.r.z + so.r.d - 0.9) +
+        '" width="1.8" height="1.8" rx="0.3"/>';
     return s + '</svg>';
   }
 
@@ -1534,6 +1835,16 @@
     removeItem,
     rotateItem,
     setLotSlots,
+    partsOf,
+    doorsOf,
+    setShape,
+    setEntr,
+    resizeItem,
+    addRoad,
+    moveRoad,
+    removeRoad,
+    setBg,
+    bgAdjust,
     reset,
     original,
     isEdited,
