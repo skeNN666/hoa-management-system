@@ -296,135 +296,833 @@
     );
   }
 
+  /* Шөнийн хотын skyline (login, landing hero): 3 давхар гүн (алс, ар эгнээ, урд эгнээ),
+   * айл бүрийн гэрэл (2 цонх = 1 айл), дээврийн тоноглол, гудамжны гэрэл, бодит хэлбэртэй машинууд.
+   * Seed-тэй PRNG → үр дүн тогтмол. ~4k элементтэй тул keep-alive host-д нэг удаа зурна:
+   * hero дахин render хийхэд SVG-г дахин parse/morph хийхгүй, анимаци тасрахгүй. */
   function skyline() {
+    const h = Nar.host('skyline');
+    if (!h.firstChild) h.innerHTML = buildSkyline();
+    return Nar.keep('skyline', 'fill');
+  }
+
+  function buildSkyline() {
+    let seed = 20261102;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const between = (a, b) => a + rnd() * (b - a);
+    const n = (v) => Math.round(v * 10) / 10;
+    const rect = (x, y, w, h, a) =>
+      '<rect x="' +
+      n(x) +
+      '" y="' +
+      n(y) +
+      '" width="' +
+      n(w) +
+      '" height="' +
+      n(h) +
+      '" ' +
+      a +
+      '/>';
+    const circ = (x, y, r, a) =>
+      '<circle cx="' + n(x) + '" cy="' + n(y) + '" r="' + n(r) + '" ' + a + '/>';
+    const pickW = (tbl) => {
+      let r = rnd() * tbl.reduce((t, e) => t + e[1], 0);
+      for (const e of tbl) if ((r -= e[1]) < 0) return e[0];
+      return tbl[0][0];
+    };
+    const stops = (st) =>
+      st
+        .map(
+          ([o, c, a]) =>
+            '<stop offset="' +
+            o +
+            '" stop-color="' +
+            c +
+            '"' +
+            (a == null ? '' : ' stop-opacity="' + a + '"') +
+            '/>',
+        )
+        .join('');
+    const lg = (id, st, h) =>
+      '<linearGradient id="sk-' +
+      id +
+      '" x1="0" y1="0" x2="' +
+      (h ? 1 : 0) +
+      '" y2="' +
+      (h ? 0 : 1) +
+      '">' +
+      stops(st) +
+      '</linearGradient>';
+    const rg = (id, st) => '<radialGradient id="sk-' + id + '">' + stops(st) + '</radialGradient>';
     const GROUND = 500;
-    // Жижиг барилгууд — тогтмол (deterministic) өндөр, өргөн
-    const B = [];
-    for (let x = 0, i = 0; x < 800; i++) {
-      const w = 34 + ((i * 37) % 4) * 6;
-      const h = 80 + ((i * 53 + 17) % 9) * 17;
-      B.push([x, w, h]);
-      x += w + 4 + (i % 3) * 3;
-    }
-    let s =
-      '<svg class="skyline" viewBox="0 0 800 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><circle cx="640" cy="150" r="24" fill="#FFF4C8" opacity=".9"/><circle cx="640" cy="150" r="66" fill="#FFF4C8" opacity=".08"/>';
-    B.forEach(([x, w, h], i) => {
-      const top = GROUND - h;
-      s +=
-        '<rect x="' +
-        x +
-        '" y="' +
-        top +
+    // айлын гэрлийн өнгө: дулаан шар, цайвар, улбар, хүйтэн LED, ТВ-ийн цэнхэр, улаавтар чийдэн
+    const HOME = [
+      ['w0', 34],
+      ['w1', 24],
+      ['w2', 18],
+      ['w3', 12],
+      ['w4', 8],
+      ['w5', 2],
+    ];
+    const OFFICE = [
+      ['w3', 50],
+      ['w1', 30],
+      ['w0', 12],
+      ['w4', 8],
+    ];
+
+    // ---------- defs ----------
+    const farPat = (id, pw, ph, p) => {
+      let o =
+        '<pattern id="sk-' +
+        id +
         '" width="' +
-        w +
+        pw +
         '" height="' +
-        h +
-        '" fill="' +
-        (i % 2 ? '#16243A' : '#1A2B44') +
-        '"/>';
-      const cols = Math.floor((w - 6) / 10),
-        rows = Math.floor((h - 10) / 13),
-        ox = x + (w - cols * 10 + 4) / 2;
-      for (let r = 0; r < rows; r++)
-        for (let c = 0; c < cols; c++) {
-          const k = (r * 7 + c * 13 + i * 5) % 11,
-            on = k > 2,
-            a = on ? 0.88 : 0.1,
-            b = on ? 0.1 : 0.88;
-          let win =
-            '<rect x="' +
-            (ox + c * 10) +
-            '" y="' +
-            (top + 8 + r * 13) +
-            '" width="6" height="7" rx="1" fill="#F6C445" opacity="' +
-            a +
-            '">';
-          // ~40% цонх асч/унтарна (discrete — гэнэт асах, унтрах)
-          if ((r * 3 + c * 5 + i) % 5 < 2) {
-            const dur = 5 + ((r + c * 2 + i) % 9),
-              beg = -((r * 11 + c * 7 + i * 3) % dur),
-              t = (0.3 + ((r + c + i) % 5) * 0.1).toFixed(2);
-            win +=
-              '<animate attributeName="opacity" values="' +
-              a +
-              ';' +
-              b +
-              ';' +
-              a +
-              '" keyTimes="0;' +
-              t +
-              ';' +
-              Math.min(0.95, +t + 0.25).toFixed(2) +
-              '" calcMode="discrete" dur="' +
-              dur +
-              's" begin="' +
-              beg +
-              's" repeatCount="indefinite"/>';
-          }
-          s += win + '</rect>';
-        }
-    });
-    // Зам, явган хүний зам, гудамжны гэрэл
-    s +=
-      '<rect x="0" y="' +
-      GROUND +
-      '" width="800" height="4" fill="#22344F"/><rect x="0" y="504" width="800" height="56" fill="#0E1A2B"/>' +
-      '<line x1="0" y1="526" x2="800" y2="526" stroke="#F6C445" stroke-width="1.5" stroke-dasharray="14 12" opacity=".55"/>';
-    for (let x = 40; x < 800; x += 150)
+        ph +
+        '" patternUnits="userSpaceOnUse">';
+      for (let y = 1.5; y + 3 < ph; y += 6)
+        for (let x = 1; x + 2 < pw; x += 4)
+          if (rnd() < p)
+            o += rect(
+              x,
+              y,
+              2,
+              2.6,
+              'fill="#F3C97E" opacity="' + between(0.25, 0.75).toFixed(2) + '"',
+            );
+      return o + '</pattern>';
+    };
+    let s =
+      '<svg class="skyline" viewBox="0 0 800 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs>' +
+      lg('sky', [
+        [0, '#0B1626'],
+        [0.45, '#0E1D33'],
+        [0.78, '#172848'],
+        [1, '#26304F'],
+      ]) +
+      lg('pol', [
+        [0, '#E89A5A', 0],
+        [1, '#E89A5A', 0.16],
+      ]) +
+      rg('moon', [
+        [0, '#FFF1C6', 0.28],
+        [0.35, '#FFF1C6', 0.08],
+        [1, '#FFF1C6', 0],
+      ]) +
+      lg('haze', [
+        [0, '#132440', 0],
+        [1, '#1B2B48', 0.6],
+      ]) +
+      lg('haze2', [
+        [0, '#132440', 0],
+        [1, '#1B2B48', 0.35],
+      ]) +
+      lg('fac', [
+        [0, '#8FB0E0', 0.08],
+        [0.4, '#000', 0],
+        [1, '#000', 0.25],
+      ]) +
+      lg('w0', [
+        [0, '#FFE4A6'],
+        [1, '#EFAE55'],
+      ]) +
+      lg('w1', [
+        [0, '#FFF5DE'],
+        [1, '#F1D6A0'],
+      ]) +
+      lg('w2', [
+        [0, '#FFC27E'],
+        [1, '#D98236'],
+      ]) +
+      lg('w3', [
+        [0, '#EAF2FF'],
+        [1, '#A9C4E8'],
+      ]) +
+      lg('w4', [
+        [0, '#A6C4FF'],
+        [1, '#5A7BCF'],
+      ]) +
+      lg('w5', [
+        [0, '#FFB8A0'],
+        [1, '#D2665A'],
+      ]) +
+      lg('wd', [
+        [0, '#1E2F4B'],
+        [1, '#09111E'],
+      ]) +
+      lg('shop', [
+        [0, '#FFF0CF'],
+        [1, '#E9A65A'],
+      ]) +
+      lg('road', [
+        [0, '#141E2D'],
+        [1, '#090F19'],
+      ]) +
+      lg('cone', [
+        [0, '#FFD99A', 0.22],
+        [1, '#FFD99A', 0],
+      ]) +
+      rg('pool', [
+        [0, '#FFD99A', 0.3],
+        [1, '#FFD99A', 0],
+      ]) +
+      lg(
+        'beam',
+        [
+          [0, '#FFF4D6', 0.34],
+          [1, '#FFF4D6', 0],
+        ],
+        1,
+      ) +
+      rg('spot', [
+        [0, '#FFF0C8', 0.22],
+        [1, '#FFF0C8', 0],
+      ]) +
+      rg('tail', [
+        [0, '#FF2A1F', 0.5],
+        [1, '#FF2A1F', 0],
+      ]) +
+      lg('glass', [
+        [0, '#40526D'],
+        [0.45, '#1A2433'],
+        [1, '#0A0F17'],
+      ]) +
+      lg('car', [
+        [0, '#FFF', 0.32],
+        [0.3, '#FFF', 0.05],
+        [0.6, '#000', 0.05],
+        [1, '#000', 0.5],
+      ]) +
+      farPat('fw0', 48, 42, 0.42) +
+      farPat('fw1', 44, 36, 0.36) +
+      farPat('fw2', 52, 48, 0.48) +
+      '</defs>';
+
+    // ---------- тэнгэр ----------
+    s += rect(0, 0, 800, 560, 'fill="url(#sk-sky)"');
+    for (let i = 0; i < 60; i++) {
+      const tw = rnd() < 0.15;
       s +=
+        '<circle cx="' +
+        n(rnd() * 800) +
+        '" cy="' +
+        n(rnd() * 260) +
+        '" r="' +
+        n(between(0.35, 0.95)) +
+        '" fill="#fff" opacity="' +
+        between(0.2, 0.7).toFixed(2) +
+        '">' +
+        (tw
+          ? '<animate attributeName="opacity" values=".7;.15;.7" dur="' +
+            between(2, 5).toFixed(1) +
+            's" begin="-' +
+            between(0, 4).toFixed(1) +
+            's" repeatCount="indefinite"/>'
+          : '') +
+        '</circle>';
+    }
+    s +=
+      circ(640, 120, 110, 'fill="url(#sk-moon)"') +
+      circ(640, 120, 21, 'fill="#FFF3D4"') +
+      circ(633, 114, 4.5, 'fill="#EADBB4" opacity=".55"') +
+      circ(647, 127, 3, 'fill="#EADBB4" opacity=".5"') +
+      circ(645, 111, 2, 'fill="#EADBB4" opacity=".45"') +
+      rect(0, 260, 800, 240, 'fill="url(#sk-pol)"');
+
+    // ---------- онгоцны анхааруулах улаан гэрэл ----------
+    const blinker = (x, y) =>
+      '<g><animate attributeName="opacity" values="1;.08;1" keyTimes="0;.45;1" calcMode="discrete" dur="' +
+      between(1.6, 2.6).toFixed(1) +
+      's" begin="-' +
+      between(0, 3).toFixed(1) +
+      's" repeatCount="indefinite"/>' +
+      circ(x, y, 5, 'fill="#FF3B30" opacity=".22"') +
+      circ(x, y, 1.4, 'fill="#FF5A4F"') +
+      '</g>';
+
+    // ---------- алсын барилгууд (pattern цонх, манан) ----------
+    for (let x = -10, i = 0; x < 810; i++) {
+      const w = between(22, 62),
+        h = between(150, 300),
+        top = GROUND - h;
+      s +=
+        rect(x, top, w, h, 'fill="#101C30"') +
+        rect(x, top, w, h, 'fill="url(#sk-fw' + (i % 3) + ')"');
+      if (h > 270)
+        s +=
+          '<path d="M' +
+          n(x + w / 2) +
+          ' ' +
+          n(top) +
+          'v-16" stroke="#1E2C44" stroke-width="1"/>' +
+          blinker(x + w / 2, top - 16);
+      x += w + between(1, 7);
+    }
+    s += rect(0, 190, 800, 310, 'fill="url(#sk-haze)"');
+
+    // ---------- цонх ----------
+    const win = (x, y, w, h, lit, fill, flick) => {
+      let o = '';
+      if (!lit || flick) o += rect(x, y, w, h, 'fill="url(#sk-wd)"');
+      if (!lit && !flick) return o;
+      const a = between(0.74, 1).toFixed(2);
+      let anim = '';
+      if (flick) {
+        const d = between(6, 20).toFixed(1),
+          t1 = between(0.2, 0.6);
+        anim =
+          '<animate attributeName="opacity" values="' +
+          (lit ? a + ';0;' + a : '0;' + a + ';0') +
+          '" keyTimes="0;' +
+          t1.toFixed(2) +
+          ';' +
+          Math.min(0.95, t1 + between(0.15, 0.35)).toFixed(2) +
+          '" calcMode="discrete" dur="' +
+          d +
+          's" begin="-' +
+          between(0, +d).toFixed(1) +
+          's" repeatCount="indefinite"/>';
+      }
+      o +=
         '<rect x="' +
+        n(x) +
+        '" y="' +
+        n(y) +
+        '" width="' +
+        n(w) +
+        '" height="' +
+        n(h) +
+        '" fill="url(#sk-' +
+        fill +
+        ')" opacity="' +
+        (lit ? a : 0) +
+        '">' +
+        anim +
+        '</rect>';
+      if (lit && !flick) {
+        const r = rnd();
+        if (r < 0.2)
+          o += rect(rnd() < 0.5 ? x : x + w * 0.55, y, w * 0.45, h, 'fill="#3A2414" opacity=".32"'); // хөшиг
+        else if (r < 0.3)
+          o += rect(x, y, w, h * 0.38, 'fill="#3A2A1C" opacity=".35"'); // хаалт
+        else if (r < 0.36)
+          o += rect(x + w * 0.25, y + h * 0.45, w * 0.3, h * 0.55, 'fill="#1A1410" opacity=".4"'); // хүний дүрс
+      }
+      return o;
+    };
+    const facade = (x, top, w, h, o) => {
+      let out = '',
+        slab = '',
+        balc = '';
+      const cols = Math.max(1, Math.floor((w - 5) / o.cw));
+      const ox = x + (w - (cols - 1) * o.cw - o.ww) / 2;
+      const rows = Math.floor((h - o.padT - o.padB) / o.fh);
+      for (let r = 0; r < rows; r++) {
+        const wy = top + o.padT + r * o.fh;
+        let unitLit = false,
+          unitFill = 'w0';
+        for (let c = 0; c < cols; c++) {
+          if (c % o.pair === 0) {
+            unitLit = rnd() < o.p;
+            unitFill = pickW(o.tbl);
+            if (o.balc && (c / o.pair + r) % 2 === 0 && c + 1 < cols)
+              balc +=
+                'M' +
+                n(ox + c * o.cw - 1.2) +
+                ' ' +
+                n(wy + o.wh + 0.9) +
+                'h' +
+                n(o.cw + o.ww + 2.4);
+          }
+          const lit = o.pair > 1 && rnd() < 0.18 ? !unitLit : unitLit;
+          out += win(ox + c * o.cw, wy, o.ww, o.wh, lit, unitFill, rnd() < 0.045);
+        }
+        if (o.slabs) slab += 'M' + n(x) + ' ' + n(wy - (o.fh - o.wh) / 2) + 'h' + n(w);
+      }
+      if (slab)
+        out += '<path d="' + slab + '" stroke="#fff" stroke-opacity=".045" stroke-width=".7"/>';
+      if (balc)
+        out += '<path d="' + balc + '" stroke="#2C3E5A" stroke-width="' + n(o.fh * 0.14) + '"/>';
+      return out;
+    };
+
+    // ---------- барилга ----------
+    const BASES = ['#162339', '#19283F', '#14213A', '#1B2A3E', '#172536', '#1A2436'];
+    const building = (x, w, h, type, k, front) => {
+      const top = GROUND - h,
+        base = BASES[Math.floor(rnd() * BASES.length)];
+      const sw = Math.round(w * between(0.09, 0.15)); // сүүдэрт хажуу хана
+      let o = '';
+      if (type === 'tower') {
+        const cw = (w - sw) * between(0.45, 0.7),
+          cx = x + sw + (w - sw - cw) / 2,
+          ch = between(7, 16);
+        const mx = cx + cw / 2,
+          mh = between(14, 32);
+        o +=
+          rect(cx, top - ch, cw, ch, 'fill="' + base + '"') +
+          rect(cx, top - ch, cw, 1.4, 'fill="#86B6FF" opacity=".4"') +
+          '<path d="M' +
+          n(mx) +
+          ' ' +
+          n(top - ch) +
+          'v-' +
+          n(mh) +
+          '" stroke="#2A3B55" stroke-width="1.1"/>' +
+          blinker(mx, top - ch - mh);
+      } else {
+        for (let i = 1 + Math.floor(rnd() * 2); i > 0; i--) {
+          const bw = between(7, 15) * k,
+            bh = between(5, 9) * k,
+            bx = x + sw + between(2, Math.max(3, w - sw - bw - 2));
+          o +=
+            rect(bx, top - bh, bw, bh, 'fill="' + base + '"') +
+            rect(bx, top - bh, bw, 1, 'fill="#2C3D58"');
+        }
+        if (rnd() < 0.65) {
+          const ax = x + between(5, w - 5),
+            ah = between(6, 13) * k;
+          o +=
+            '<path d="M' +
+            n(ax) +
+            ' ' +
+            n(top) +
+            'v-' +
+            n(ah) +
+            'm-3 3h6m-5 3h4" stroke="#2A3B55" stroke-width=".8" fill="none"/>';
+        }
+        if (rnd() < 0.35) {
+          const tx = x + between(sw + 4, w - 12);
+          o +=
+            rect(tx, top - 9 * k, 7 * k, 6 * k, 'rx="1" fill="#1D2B42"') +
+            '<path d="M' +
+            n(tx + 1) +
+            ' ' +
+            n(top - 3 * k) +
+            'v3m' +
+            n(5 * k - 2) +
+            ' -3v3" stroke="#2A3B55" stroke-width=".7"/>';
+        }
+      }
+      o +=
+        rect(x, top, w, h, 'fill="' + base + '"') +
+        rect(x, top, w, h, 'fill="url(#sk-fac)"') +
+        rect(x, top, sw, h, 'fill="#000" opacity=".32"') +
+        rect(x - 0.5, top - 1.5, w + 1, 2, 'fill="#2C3D58"');
+      const office = type === 'tower' && rnd() < 0.45;
+      const spec =
+        type === 'panel'
+          ? {
+              fh: 11,
+              ww: 4.6,
+              wh: 6,
+              cw: 8,
+              pair: 2,
+              p: 0.76,
+              tbl: HOME,
+              padT: 6,
+              padB: 12,
+              slabs: 1,
+              balc: 1,
+            }
+          : type === 'tower'
+            ? office
+              ? {
+                  fh: 10,
+                  ww: 6.6,
+                  wh: 7.2,
+                  cw: 8.4,
+                  pair: 1,
+                  p: 0.62,
+                  tbl: OFFICE,
+                  padT: 5,
+                  padB: 13,
+                  slabs: 1,
+                }
+              : {
+                  fh: 10.5,
+                  ww: 4.8,
+                  wh: 6.2,
+                  cw: 7.6,
+                  pair: 2,
+                  p: 0.74,
+                  tbl: HOME,
+                  padT: 5,
+                  padB: 13,
+                  balc: 1,
+                }
+            : {
+                fh: 12,
+                ww: 5.6,
+                wh: 7,
+                cw: 9.5,
+                pair: 2,
+                p: 0.74,
+                tbl: HOME,
+                padT: 6,
+                padB: 17,
+                slabs: 1,
+              };
+      ['fh', 'ww', 'wh', 'cw', 'padT', 'padB'].forEach((key) => (spec[key] *= k));
+      o += facade(x + sw, top, w - sw, h, spec);
+      if (!front) return o;
+      // газрын давхар: орц эсвэл дэлгүүр
+      const fx = x + sw,
+        fw = w - sw;
+      if (type === 'low') {
+        const sc = ['#E8505B', '#3FB6A8', '#F2A93B', '#5B8DEF', '#C86DD7'][Math.floor(rnd() * 5)];
+        o +=
+          rect(fx + 3, GROUND - 11, fw - 6, 10.5, 'fill="url(#sk-shop)" opacity=".92"') +
+          '<path d="M' +
+          n(fx + 3 + (fw - 6) / 3) +
+          ' ' +
+          (GROUND - 11) +
+          'v10.5M' +
+          n(fx + 3 + ((fw - 6) * 2) / 3) +
+          ' ' +
+          (GROUND - 11) +
+          'v10.5" stroke="#2A2E38" stroke-width=".8"/>' +
+          rect(fx + fw * 0.2, GROUND - 15.5, fw * 0.6, 3.4, 'rx=".8" fill="' + sc + '"') +
+          rect(
+            fx + fw * 0.2 - 4,
+            GROUND - 19,
+            fw * 0.6 + 8,
+            10,
+            'fill="' + sc + '" opacity=".12"',
+          ) +
+          '<ellipse cx="' +
+          n(fx + fw / 2) +
+          '" cy="' +
+          (GROUND + 3) +
+          '" rx="' +
+          n(fw * 0.55) +
+          '" ry="3.5" fill="#FFD9A0" opacity=".14"/>';
+      } else {
+        for (let d = 0, nd = fw > 90 ? 2 : 1; d < nd; d++) {
+          const dx = fx + (fw * (d + 1)) / (nd + 1) - 3.5;
+          o +=
+            rect(dx, GROUND - 9.5, 7, 9.5, 'fill="url(#sk-w1)" opacity=".9"') +
+            rect(dx - 2.5, GROUND - 11.5, 12, 1.6, 'fill="#2C3D58"') +
+            circ(dx + 3.5, GROUND - 13.2, 0.9, 'fill="#FFF0C8"') +
+            '<ellipse cx="' +
+            n(dx + 3.5) +
+            '" cy="' +
+            (GROUND + 2.5) +
+            '" rx="14" ry="3" fill="#FFD9A0" opacity=".16"/>';
+        }
+      }
+      return o;
+    };
+
+    // ар эгнээ: өндөр цамхаг, панель байр (жижиг масштаб)
+    for (let x = -20; x < 820; ) {
+      const tower = rnd() < 0.45;
+      const w = tower ? between(30, 48) : between(60, 104);
+      const h = tower ? between(215, 300) : between(150, 215);
+      s += building(x, w, h, tower ? 'tower' : 'panel', 0.78, false);
+      x += w + between(4, 14);
+    }
+    s += rect(0, 200, 800, 300, 'fill="url(#sk-haze2)"');
+    // урд эгнээ: панель байр, намхан дэлгүүртэй байр, цамхаг
+    for (let x = -12; x < 812; ) {
+      const r = rnd(),
+        type = r < 0.5 ? 'panel' : r < 0.8 ? 'low' : 'tower';
+      const w =
+        type === 'panel' ? between(82, 128) : type === 'low' ? between(52, 80) : between(38, 52);
+      const h =
+        type === 'panel' ? between(112, 168) : type === 'low' ? between(62, 92) : between(178, 228);
+      s += building(x, w, h, type, 1, true);
+      x += w + between(10, 38);
+    }
+
+    // ---------- мод ----------
+    for (let i = 0; i < 9; i++) {
+      const tx = between(10, 790),
+        th = between(9, 15),
+        cr = between(5, 8.5);
+      s +=
+        rect(tx - 0.8, GROUND - th, 1.6, th + 2, 'fill="#0A121E"') +
+        circ(tx, GROUND - th - cr * 0.4, cr, 'fill="#0B1625"') +
+        circ(tx - cr * 0.7, GROUND - th + cr * 0.2, cr * 0.72, 'fill="#0B1625"') +
+        circ(tx + cr * 0.75, GROUND - th + cr * 0.15, cr * 0.7, 'fill="#0A1422"') +
+        circ(tx + cr * 0.2, GROUND - th - cr * 0.9, cr * 0.55, 'fill="#13233A" opacity=".7"');
+    }
+
+    // ---------- явган зам, зам ----------
+    s +=
+      rect(0, GROUND, 800, 6, 'fill="#1C293C"') +
+      rect(0, GROUND + 4.5, 800, 1.6, 'fill="#3A4C66"') +
+      rect(0, GROUND + 6, 800, 54, 'fill="url(#sk-road)"') +
+      '<path d="M0 509.5H800" stroke="#D9DEE6" stroke-opacity=".22" stroke-width=".8"/>' +
+      '<path d="M0 535.5H800" stroke="#E9EEF5" stroke-opacity=".32" stroke-width="1.2" stroke-dasharray="18 14"/>';
+    const LAMPS = [];
+    for (let x = 60; x < 800; x += 165) LAMPS.push(x);
+    LAMPS.forEach((x) => {
+      s += '<ellipse cx="' + (x + 16) + '" cy="527" rx="56" ry="10" fill="url(#sk-pool)"/>';
+      s +=
+        '<ellipse cx="' +
+        (x + 16) +
+        '" cy="552" rx="46" ry="5" fill="url(#sk-pool)" opacity=".5"/>';
+    });
+    LAMPS.forEach((x) => {
+      s +=
+        rect(x - 1.6, GROUND + 2, 3.2, 3, 'fill="#22324A"') +
+        '<path d="M' +
         x +
-        '" y="' +
-        (GROUND - 30) +
-        '" width="2" height="30" fill="#2A3D58"/><rect x="' +
-        (x - 4) +
-        '" y="' +
-        (GROUND - 32) +
-        '" width="10" height="3" rx="1.5" fill="#2A3D58"/><circle cx="' +
-        (x + 4) +
-        '" cy="' +
-        (GROUND - 28) +
-        '" r="2" fill="#FFE9A8"/><ellipse cx="' +
-        (x + 4) +
-        '" cy="' +
-        (GROUND + 2) +
-        '" rx="22" ry="5" fill="#FFE9A8" opacity=".08"/>';
-    // Машинууд: дээд эгнээ баруун тийш, доод эгнээ зүүн тийш
-    const car = (dir, y, color, dur, beg) => {
-      const body =
-        '<path d="M30 -5 L60 -10 L60 1 Z" fill="#FFE9A8" opacity=".09"/>' +
-        '<path d="M6 -8 L10 -13 H20 L25 -8 Z" fill="' +
-        color +
-        '"/><rect x="0" y="-8.5" width="31" height="7" rx="2.5" fill="' +
+        ' ' +
+        (GROUND + 3) +
+        'V454q0 -5 6 -5h9" fill="none" stroke="#2C3D58" stroke-width="1.8"/>' +
+        rect(x + 12, 447.4, 10, 2.8, 'rx="1.4" fill="#33465F"');
+    });
+
+    // ---------- машинууд ----------
+    // хэлбэр бүр: урд тал +x, дугуйн суурь y=0. gt — шилний дээд ирмэг, belt — цонхны доод шугам.
+    const CAR = {
+      sedan: {
+        L: 46,
+        r: 3.7,
+        wx: [9, 37.5],
+        gt: -14.7,
+        belt: -10,
+        hl: -7.6,
+        tl: -8.4,
+        th: 2.2,
+        body: 'M1 -4C1 -7.5 2 -9 5 -9.4L12 -10.2C15 -14.2 18 -15.4 22 -15.5L27 -15.5C30 -15.4 32 -13.5 35 -10.4L43 -9.4C45 -9 46 -7.6 46 -5.6L46 -3.4C46 -2.4 45.4 -2 44.6 -2L1.6 -2C1 -2 1 -2.6 1 -4Z',
+        glass:
+          'M13.6 -10.3C16 -13.5 18.6 -14.6 22 -14.7L26.8 -14.7C29.3 -14.6 31.2 -13 33.4 -10.4Z',
+        pil: [[23, 1]],
+        seams: [13.2, 23.6, 34.2],
+        handles: [20.5, 31],
+      },
+      hatch: {
+        L: 38,
+        r: 3.4,
+        wx: [8, 30.5],
+        gt: -15.2,
+        belt: -10.8,
+        hl: -7.4,
+        tl: -10.4,
+        th: 3,
+        body: 'M1 -4L1 -9.5C1 -10.5 1.6 -11 2.4 -11.4L5.5 -15.6C6 -16.2 6.8 -16.5 7.8 -16.5L20 -16.5C22 -16.5 23.4 -15.6 25 -14L28.6 -10.6L35 -9.6C37 -9.2 38 -8 38 -6L38 -3.4C38 -2.4 37.4 -2 36.6 -2L2 -2C1.4 -2 1 -2.6 1 -4Z',
+        glass: 'M4.6 -11.4L7.3 -15.2L19.8 -15.2C21.3 -15.2 22.5 -14.6 23.7 -13.4L26.6 -10.7Z',
+        pil: [[14.6, 1.1]],
+        seams: [15, 27.4],
+        handles: [12.5, 24.4],
+      },
+      suv: {
+        L: 48,
+        r: 4.3,
+        wx: [10, 38.5],
+        gt: -18.3,
+        belt: -12.8,
+        hl: -9.6,
+        tl: -12.6,
+        th: 4,
+        body: 'M1 -4L1 -11C1 -12 1.8 -12.6 3 -12.8L6 -18.6C6.4 -19.3 7 -19.6 8 -19.6L31 -19.6C32.4 -19.6 33.4 -19 34.4 -17.8L38.4 -12.6L45 -11.4C47 -11 48 -9.8 48 -8L48 -3.6C48 -2.6 47.4 -2 46.4 -2L2 -2C1.4 -2 1 -2.6 1 -4Z',
+        glass: 'M3.8 -13L6.9 -18.3L30.6 -18.3C31.5 -18.3 32.3 -17.8 33.1 -16.8L36.4 -12.9Z',
+        pil: [
+          [14.6, 1.3],
+          [25.4, 1.5],
+        ],
+        seams: [14.8, 26, 37],
+        handles: [22.6, 33.6],
+        extra: () =>
+          rect(8, -20.5, 22, 0.9, 'fill="#0B0F15"') +
+          rect(9.5, -20.2, 0.8, 0.8, 'fill="#0B0F15"') +
+          rect(27.5, -20.2, 0.8, 0.8, 'fill="#0B0F15"'),
+      },
+      van: {
+        L: 54,
+        r: 4.2,
+        wx: [10.5, 44],
+        gt: -19.8,
+        belt: -13.8,
+        hl: -9,
+        tl: -14.4,
+        th: 4.4,
+        body: 'M1 -4L1 -20C1 -21.4 2 -22 3.4 -22L40 -22C42 -22 43 -21.4 44 -20L49 -13L52 -12.2C53.4 -11.8 54 -10.6 54 -9L54 -3.6C54 -2.6 53.4 -2 52.4 -2L2 -2C1.4 -2 1 -2.6 1 -4Z',
+        glass:
+          'M3 -19.8H12.6V-14H3ZM14.2 -19.8H26V-14H14.2ZM27.6 -19.8H39.4V-14H27.6ZM41 -19.8H42.4L47.4 -13.6H41Z',
+        pil: [],
+        seams: [27, 40.6],
+        handles: [37.6],
+      },
+      bus: {
+        L: 112,
+        r: 5,
+        wx: [20, 92],
+        gt: -30,
+        belt: -18,
+        hl: -8,
+        tl: -11,
+        th: 6,
+        body: 'M1 -4L1 -31C1 -33 2 -34 4 -34L106 -34C108.5 -34 110 -33 110.6 -31L112 -16L112 -3.6C112 -2.6 111.4 -2 110.4 -2L2 -2C1.4 -2 1 -2.6 1 -4Z',
+        glass: 'M99 -31H108.6L110.3 -18.4H99Z',
+        pil: [],
+        seams: [],
+        handles: [],
+        extra: () => {
+          let o =
+            rect(28, -36.4, 30, 2.6, 'rx="1" fill="#9AA6B5"') +
+            rect(1, -16.5, 111, 3, 'fill="#fff" opacity=".2"');
+          for (let i = 0; i < 5; i++) {
+            const wx = 4 + i * 16;
+            o += rect(wx, -31, 14, 12.4, 'fill="#FFEFC6" opacity=".86"');
+            if (rnd() < 0.7)
+              o +=
+                circ(wx + between(3, 11), -23.4, 1.9, 'fill="#2A2A30" opacity=".7"') +
+                rect(wx + 1, -21.6, 12, 2.6, 'fill="#2A2A30" opacity=".35"');
+          }
+          return (
+            o +
+            rect(84, -31, 10, 27, 'fill="#FFEFC6" opacity=".8"') +
+            '<path d="M89 -31V-4" stroke="#1B2330" stroke-width=".8"/>' +
+            rect(99.6, -33.2, 8.4, 1.8, 'fill="#FFB020"')
+          );
+        },
+      },
+    };
+    const vehicle = (t, color) => {
+      const v = CAR[t],
+        L = v.L,
+        r = v.r;
+      let o =
+        '<ellipse cx="' +
+        L / 2 +
+        '" cy="0" rx="' +
+        n(L * 0.56) +
+        '" ry="2" fill="#000" opacity=".55"/>' +
+        '<path d="M' +
+        (L - 0.5) +
+        ' ' +
+        n(v.hl - 1.2) +
+        'L' +
+        (L + 92) +
+        ' ' +
+        n(v.hl - 10) +
+        'L' +
+        (L + 98) +
+        ' 1L' +
+        (L - 0.5) +
+        ' ' +
+        n(v.hl + 1.4) +
+        'Z" fill="url(#sk-beam)"/>' +
+        '<ellipse cx="' +
+        (L + 44) +
+        '" cy="-.4" rx="36" ry="2.8" fill="url(#sk-spot)"/>' +
+        '<ellipse cx="-1" cy="' +
+        v.tl +
+        '" rx="8" ry="4.5" fill="url(#sk-tail)"/>' +
+        '<path d="' +
+        v.body +
+        '" fill="' +
         color +
         '"/>' +
-        '<rect x="11" y="-12" width="4.5" height="3.5" fill="#9FC3E8" opacity=".6"/><rect x="16.5" y="-12" width="4.5" height="3.5" fill="#9FC3E8" opacity=".6"/>' +
-        '<rect x="29" y="-7" width="2.5" height="2" fill="#FFF4C8"/><rect x="-0.5" y="-7" width="2" height="2" fill="#FF4D4D"/>' +
-        '<circle cx="7" cy="-1.5" r="2.4" fill="#05090F"/><circle cx="24" cy="-1.5" r="2.4" fill="#05090F"/>';
-      const from = dir > 0 ? '-80 ' + y : '880 ' + y,
-        to = dir > 0 ? '880 ' + y : '-80 ' + y;
-      return (
-        '<g><animateTransform attributeName="transform" type="translate" from="' +
-        from +
-        '" to="' +
-        to +
-        '" dur="' +
-        dur +
-        's" begin="' +
-        beg +
-        's" repeatCount="indefinite"/>' +
-        (dir > 0 ? body : '<g transform="scale(-1 1)">' + body + '</g>') +
-        '</g>'
+        (v.extra ? v.extra() : '') +
+        '<path d="' +
+        v.glass +
+        '" fill="url(#sk-glass)"/>';
+      v.pil.forEach(
+        ([px, pw]) => (o += rect(px, v.gt - 0.3, pw, v.belt - v.gt + 0.6, 'fill="' + color + '"')),
       );
+      o += '<path d="' + v.body + '" fill="url(#sk-car)"/>';
+      if (v.seams.length)
+        o +=
+          '<path d="' +
+          v.seams.map((x) => 'M' + x + ' ' + v.belt + 'V-3.4').join('') +
+          '" stroke="#000" stroke-opacity=".38" stroke-width=".45"/>';
+      v.handles.forEach((hx) => (o += rect(hx, v.belt + 1.3, 2, 0.6, 'fill="#fff" opacity=".28"')));
+      o +=
+        '<path d="M2.2 ' +
+        v.belt +
+        'H' +
+        (L - 4) +
+        '" stroke="#fff" stroke-opacity=".12" stroke-width=".4"/>' +
+        '<path d="M3 -3.1H' +
+        (L - 2) +
+        '" stroke="#000" stroke-opacity=".4" stroke-width=".9"/>' +
+        '<path d="M' +
+        (L - 2.6) +
+        ' ' +
+        n(v.hl - 1.1) +
+        'h2.3v2.3h-2.8z" fill="#FFF6DA"/>' +
+        circ(L - 0.6, v.hl, 2.8, 'fill="#FFF2CC" opacity=".45"') +
+        rect(0.5, v.tl - v.th / 2, 1.6, v.th, 'fill="#E8302A"');
+      v.wx.forEach((cx) => {
+        o +=
+          circ(cx, -r, r + 0.9, 'fill="#05080D"') +
+          circ(cx, -r, r, 'fill="#15181D"') +
+          circ(cx, -r, r * 0.62, 'fill="#6E7886"') +
+          circ(cx, -r, r * 0.44, 'fill="#3A424E"') +
+          circ(cx, -r, r * 0.15, 'fill="#9AA3AF"');
+      });
+      return o;
     };
+    // dir: 1 = баруун тийш; y = дугуйн суурь; k = масштаб (алс эгнээ жижиг)
+    const lane = (dir, y, k, dur, list) =>
+      list
+        .map(([t, color, beg]) => {
+          const from = dir > 0 ? -200 : 1000,
+            to = dir > 0 ? 1000 : -200;
+          return (
+            '<g><animateTransform attributeName="transform" type="translate" from="' +
+            from +
+            ' ' +
+            y +
+            '" to="' +
+            to +
+            ' ' +
+            y +
+            '" dur="' +
+            dur +
+            's" begin="' +
+            beg +
+            's" repeatCount="indefinite"/><g transform="scale(' +
+            dir * k +
+            ' ' +
+            k +
+            ')">' +
+            vehicle(t, color) +
+            '</g></g>'
+          );
+        })
+        .join('');
     s +=
-      car(1, 520, '#E2574C', 9, 0) +
-      car(1, 520, '#3D8FD6', 9, -3) +
-      car(1, 520, '#F2F2F2', 9, -6.5) +
-      car(-1, 540, '#F6C445', 7.5, -1) +
-      car(-1, 540, '#2EAE68', 7.5, -4) +
-      car(-1, 540, '#8A6CD8', 11, -7);
-    return Nar.raw(s + '</svg>');
+      lane(1, 528, 0.68, 18, [
+        ['sedan', '#9AA3AE', 0],
+        ['hatch', '#7A2A33', -3],
+        ['suv', '#1C2028', -6.2],
+        ['sedan', '#D3D7DD', -9.1],
+        ['van', '#5F6773', -12.4],
+        ['sedan', '#2B4A6F', -15.3],
+      ]) +
+      lane(-1, 555, 0.86, 13, [
+        ['bus', '#2F5F96', 0],
+        ['sedan', '#1E2633', -2.5],
+        ['suv', '#B8BEC6', -4.8],
+        ['hatch', '#3E5C4A', -7.5],
+        ['sedan', '#6B1E26', -10.2],
+      ]);
+
+    // ---------- гудамжны гэрлийн туяа (машин дээр тусна) ----------
+    LAMPS.forEach((x) => {
+      s +=
+        '<path d="M' +
+        (x + 13) +
+        ' 450L' +
+        (x + 21) +
+        ' 450L' +
+        (x + 64) +
+        ' 560L' +
+        (x - 32) +
+        ' 560Z" fill="url(#sk-cone)" opacity=".5"/>' +
+        rect(x + 13, 450, 8, 1.4, 'rx=".7" fill="#FFE7B3"') +
+        '<ellipse cx="' +
+        (x + 17) +
+        '" cy="451" rx="9" ry="4" fill="#FFE2A8" opacity=".25"/>';
+    });
+    return s + '</svg>';
   }
 
   /** Тойрог прогресс (ажилтны өнөөдрийн гүйцэтгэл) */
