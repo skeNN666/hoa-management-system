@@ -81,6 +81,51 @@ server.listen(0, async () => {
     );
     assert.deepStrictEqual(await (await req('GET', '/api/layouts')).json(), []);
   });
+  console.log('Бүртгэл API');
+  await test('оршин суугчийн хүсэлт → админ батлах → нэвтрэх', async () => {
+    const x = { role: 'resident', cx: 'narny', name: 'Б. Болд', phone: '88112233' };
+    Object.assign(x, { b: 1, u: 5, pw: 'bold2026', pw2: 'bold2026' });
+    const r = await (await req('POST', '/api/accounts/register', x)).json();
+    assert.strictEqual(r.acc.status, 'pending');
+    assert.ok(!('pw' in r.acc));
+    const login = { role: 'resident', cx: 'narny', login: '88112233', pw: 'bold2026' };
+    const p = await req('POST', '/api/accounts/login', login);
+    assert.strictEqual(p.status, 400);
+    assert.strictEqual((await p.json()).status, 'pending');
+    assert.strictEqual((await req('GET', '/api/accounts')).status, 403);
+    assert.strictEqual(
+      (await req('PATCH', '/api/accounts/' + r.acc.id, { status: 'active' }, admin('altan')))
+        .status,
+      400,
+    );
+    const list = await (await req('GET', '/api/accounts', null, admin('narny'))).json();
+    assert.strictEqual(list.length, 1);
+    assert.ok(!('pw' in list[0]));
+    assert.strictEqual(
+      (await req('PATCH', '/api/accounts/' + r.acc.id, { status: 'active' }, admin('narny')))
+        .status,
+      200,
+    );
+    assert.strictEqual((await req('POST', '/api/accounts/login', login)).status, 200);
+  });
+  await test('ажилтныг зөвхөн админ үүсгэнэ', async () => {
+    const x = { name: 'Г. Төмөр', pos: 'Цахилгаанчин', phone: '88001122', pw: 'tomor26' };
+    assert.strictEqual((await req('POST', '/api/accounts/staff', x)).status, 403);
+    assert.strictEqual(
+      (await req('POST', '/api/accounts/register', { ...x, role: 'staff', cx: 'narny' })).status,
+      400,
+    );
+    const r = await (await req('POST', '/api/accounts/staff', x, admin('narny'))).json();
+    assert.strictEqual(r.acc.login, 'EMP-101');
+  });
+  await test('оршин суугчийг зөвхөн админ шууд бүртгэнэ', async () => {
+    const x = { name: 'Д. Цэцэг', phone: '99001122', b: 1, u: 7, pw: 'tsetseg1' };
+    assert.strictEqual((await req('POST', '/api/accounts/resident', x)).status, 403);
+    const r = await (await req('POST', '/api/accounts/resident', x, admin('narny'))).json();
+    assert.strictEqual(r.acc.status, 'active');
+    const login = { role: 'resident', cx: 'narny', login: '99001122', pw: 'tsetseg1' };
+    assert.strictEqual((await req('POST', '/api/accounts/login', login)).status, 200);
+  });
   console.log('Статик файл');
   await test('index.html, js өгнө', async () => {
     assert.strictEqual((await req('GET', '/')).status, 200);

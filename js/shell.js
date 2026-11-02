@@ -69,7 +69,7 @@
         })}
       </div>
       <div class="flex g2">
-        ${themeBtn()}<a href="index.html" data-follow="1" class="logout" onclick="Api.logout()"
+        ${themeBtn()}<a href="login.html" data-follow="1" class="logout" onclick="Api.logout()"
           >${ic('logout', 16)}Гарах</a
         >
       </div>

@@ -24,6 +24,8 @@
     repM: D.CUR_MONTH,
     exp: { cat: 'Засвар', t: '', amt: '', v: '' },
     wk: { cat: 'Засвар', t: '', where: '' },
+    // Бүртгэл: оршин суугчийн хүсэлт, ажилтны бүртгэл (js/accounts.js)
+    acc: { tab: 'pending', list: [], f: {}, made: null, busy: false },
   };
   const set = (p) => {
     Object.assign(ui, p);
@@ -1384,6 +1386,241 @@
     </div>`;
   }
 
+  /* ------------------------------ Бүртгэл ------------------------------ */
+  // Оршин суугч өөрөө хүсэлт илгээнэ → энд батлах / татгалзах. Ажилтныг зөвхөн админ үүсгэнэ.
+  const accs = (role, st) =>
+    ui.acc.list.filter((a) => a.role === role && (!st || st.includes(a.status)));
+  const pendingN = () => accs('resident', ['pending']).length;
+  function loadAccounts() {
+    return Api.accounts.list().then((r) => {
+      if (!r.ok) return;
+      const before = pendingN();
+      ui.acc.list = r.list.sort((a, b) => b.at - a.at);
+      if (pendingN() > before && before >= 0 && loadAccounts.done)
+        S.toast('Шинэ бүртгэлийн хүсэлт', pendingN() + ' хүсэлт хүлээгдэж байна', 'acc');
+      loadAccounts.done = true;
+      Shell.refresh(['ui', 'nav']);
+    });
+  }
+  const ACC_ST = {
+    pending: ['c-warn', 'Хүлээгдэж байна'],
+    active: ['c-ok', 'Идэвхтэй'],
+    rejected: ['c-bad', 'Татгалзсан'],
+    disabled: ['c-mute', 'Идэвхгүй'],
+  };
+  const stChip = (a) =>
+    html`<span class="${'chip self-start ' + ACC_ST[a.status][0]}">${ACC_ST[a.status][1]}</span>`;
+  const when = (t) =>
+    Date.now() - t < 86400000 ? ago(Date.now() - t) + ' өмнө' : new Date(t).toLocaleDateString();
+  const accFld = (label, k, o = {}) =>
+    html`<label class="field"
+      >${label}<input
+        class="inp"
+        data-in="accF"
+        data-k="${k}"
+        value="${ui.acc.f[k] || ''}"
+        type="${o.type || 'text'}"
+        placeholder="${o.ph || ''}"
+        inputmode="${o.mode || 'text'}"
+        autocomplete="off"
+    /></label>`;
+
+  function pendingList() {
+    const list = accs('resident', ['pending']);
+    if (!list.length)
+      return html`<div class="card p5 empty">
+        ${ic('inbox', 26)}
+        <b>Хүлээгдэж буй хүсэлт алга</b>
+        <span class="muted t13">Оршин суугч бүртгүүлэх хүсэлт илгээхэд энд гарна.</span>
+      </div>`;
+    const taken = accs('resident', ['active']);
+    return html`<div class="cols gs c1 lg-c2">
+      ${list.map((a) => {
+        const dup = taken.find((x) => x.b === a.b && x.u === a.u);
+        return html`<section class="card p4 col g3" data-key="${a.id}">
+          <div class="flex ic g3">
+            <span class="avatar">${a.name.slice(0, 2)}</span>
+            <div class="grow col">
+              <b class="trunc">${a.name}</b
+              ><span class="muted t12 num">${a.b}-р байр · ${a.u} тоот · ${a.fam} хүн</span>
+            </div>
+            <span class="faint t11 num">${when(a.at)}</span>
+          </div>
+          <div class="flex ic g2 wrap t13">
+            ${ic('phone', 15)}<b class="num">${a.phone}</b>${stChip(a)}
+          </div>
+          ${dup
+            ? html`<p class="chip c-warn self-start">Энэ тоотод ${dup.name} бүртгэлтэй байна</p>`
+            : ''}
+          <div class="flex g2">
+            <button class="btn s okb grow" data-act="accSet" data-arg="${a.id}:active">
+              ${ic('check', 15)} Батлах
+            </button>
+            <button class="btn s grow" data-act="accSet" data-arg="${a.id}:rejected">
+              ${ic('x', 15)} Татгалзах
+            </button>
+          </div>
+        </section>`;
+      })}
+    </div>`;
+  }
+
+  function accTable(list, cols, row) {
+    if (!list.length)
+      return html`<div class="card p5 empty"><span class="muted t13">Бүртгэл алга</span></div>`;
+    return html`<div class="card p4 ovx">
+      <div class="rows" style="min-width:560px">
+        <div class="${'r head th ' + cols}">${row(null)}</div>
+        ${list.map(
+          (a) => html`<div class="${'r trow ' + cols}" data-key="${a.id}">${row(a)}</div>`,
+        )}
+      </div>
+    </div>`;
+  }
+
+  /** шинээр үүсгэсэн бүртгэлийн нэвтрэх мэдээлэл (нэг л удаа харагдана) */
+  const madeBox = (m, who) =>
+    m
+      ? html`<div class="soft-box p3 col g1 t13">
+          <b class="okc">✓ ${m.name} бүртгэгдлээ</b>
+          <span>Нэвтрэх нэр: <b class="num">${m.login}</b></span>
+          <span>Нууц үг: <b class="num">${m.pw}</b></span>
+          <span class="muted t12">Энэ мэдээллийг ${who} өгнө үү — дахин харагдахгүй.</span>
+        </div>`
+      : '';
+
+  function residentList() {
+    const f = ui.acc.f;
+    const B = BUILDINGS.find((b) => String(b.n) === String(f.b)) || BUILDINGS[0];
+    return html`<div class="cols gs c1 lg-c3">
+      <form class="card p4 col g3" data-submit="accRes" autocomplete="off">
+        <div>
+          <h2 class="h2">Оршин суугч нэмэх</h2>
+          <p class="muted t13">Шууд идэвхтэй болно. Утасны дугаар, нууц үгээрээ нэвтэрнэ.</p>
+        </div>
+        ${accFld('Овог нэр', 'name', { ph: 'Б. Болд' })}
+        ${accFld('Утасны дугаар', 'phone', { ph: '9911 2233', mode: 'tel' })}
+        <div class="cols gs c2">
+          <label class="field"
+            >Байр<select class="inp" data-change="accF" data-k="b">
+              ${BUILDINGS.map(
+                (b) =>
+                  html`<option value="${b.n}" ${b === B ? Nar.raw('selected') : ''}>
+                    ${b.n}-р байр
+                  </option>`,
+              )}
+            </select></label
+          >
+          ${accFld('Тоот (1–' + B.units + ')', 'u', { ph: '34', mode: 'numeric' })}
+        </div>
+        ${accFld('Ам бүл', 'fam', { ph: '3', mode: 'numeric' })}
+        ${accFld('Анхны нууц үг', 'pw', { ph: 'дор хаяж 6 тэмдэгт' })}
+        <button class="btn p" ${ui.acc.busy ? Nar.raw('disabled') : ''}>
+          ${ic('plus', 16)} Бүртгэх
+        </button>
+        ${madeBox(ui.acc.made, 'оршин суугчид')}
+      </form>
+      <div class="lg-span2">${residentTable()}</div>
+    </div>`;
+  }
+
+  function residentTable() {
+    return accTable(accs('resident', ['active', 'rejected', 'disabled']), 'g-acc', (a) =>
+      !a
+        ? html`<span>Нэр</span><span>Тоот</span><span>Утас</span><span>Төлөв</span><span></span>`
+        : html`<b class="trunc">${a.name}</b><span class="num">${a.b}-р · ${a.u}</span
+            ><span class="num">${a.phone}</span>${stChip(a)}${a.status === 'active'
+              ? html`<button class="btn s" data-act="accSet" data-arg="${a.id}:disabled">
+                  Идэвхгүй болгох
+                </button>`
+              : html`<button class="btn s" data-act="accSet" data-arg="${a.id}:active">
+                  Идэвхжүүлэх
+                </button>`}`,
+    );
+  }
+
+  function staffAccounts() {
+    const m = ui.acc.made;
+    return html`<div class="cols gs c1 lg-c3">
+      <form class="card p4 col g3" data-submit="accStaff" autocomplete="off">
+        <div>
+          <h2 class="h2">Ажилтан нэмэх</h2>
+          <p class="muted t13">ID автоматаар үүснэ. Нууц үгийг ажилтандаа өгнө.</p>
+        </div>
+        ${accFld('Овог нэр', 'name', { ph: 'Г. Төмөр' })}
+        ${accFld('Албан тушаал', 'pos', { ph: 'Цахилгаанчин' })}
+        ${accFld('Утасны дугаар', 'phone', { ph: '8811 2233', mode: 'tel' })}
+        ${accFld('Анхны нууц үг', 'pw', { ph: 'дор хаяж 6 тэмдэгт' })}
+        <button class="btn p" ${ui.acc.busy ? Nar.raw('disabled') : ''}>
+          ${ic('plus', 16)} Бүртгэл үүсгэх
+        </button>
+        ${madeBox(m, 'ажилтанд')}
+      </form>
+      <div class="lg-span2">
+        ${accTable(accs('staff'), 'g-acc', (a) =>
+          !a
+            ? html`<span>Нэр</span><span>ID</span><span>Албан тушаал</span><span>Төлөв</span
+                ><span></span>`
+            : html`<b class="trunc">${a.name}</b><b class="num">${a.login}</b
+                ><span class="trunc">${a.pos}</span>${stChip(a)}${a.status === 'active'
+                  ? html`<button class="btn s" data-act="accSet" data-arg="${a.id}:disabled">
+                      Идэвхгүй болгох
+                    </button>`
+                  : html`<button class="btn s" data-act="accSet" data-arg="${a.id}:active">
+                      Идэвхжүүлэх
+                    </button>`}`,
+        )}
+      </div>
+    </div>`;
+  }
+
+  /** createStaff | createResident → амжилттай бол нэвтрэх мэдээллийг нэг удаа харуулна */
+  async function accCreate(fn) {
+    const f = ui.acc.f;
+    if (fn === 'createResident') {
+      f.b = f.b || BUILDINGS[0].n;
+      const B = BUILDINGS.find((b) => String(b.n) === String(f.b));
+      if (B && Number(f.u) > B.units)
+        return S.toast('Тоот буруу', f.b + '-р байр ' + B.units + ' айлтай', 'warn');
+    }
+    ui.acc.busy = true;
+    set({});
+    const r = await Api.accounts[fn](f);
+    ui.acc.busy = false;
+    if (!r.ok) return set({}), S.toast('Бүртгэл үүссэнгүй', r.msg, 'warn');
+    ui.acc.made = { name: r.acc.name, login: r.acc.login, pw: f.pw };
+    ui.acc.f = f.b ? { b: f.b } : {}; // сонгосон байр select-д харагдсаар үлдэнэ
+    clearInputs('accF');
+    loadAccounts();
+  }
+
+  function accountsView() {
+    const n = pendingN();
+    return html`<div class="col g4">
+      <div class="flex ic g3 wrap">
+        ${seg(
+          [
+            ['pending', 'Хүсэлт' + (n ? ' · ' + n : '')],
+            ['resident', 'Оршин суугч'],
+            ['staff', 'Ажилтан'],
+          ],
+          ui.acc.tab,
+          'accTab',
+        )}
+        <span class="muted t13 ml-auto"
+          >${Api.online()
+            ? 'Сервертэй холбогдсон'
+            : 'Энэ browser-т хадгалагдана (server-гүй)'}</span
+        >
+      </div>
+      ${ui.acc.tab === 'pending'
+        ? pendingList()
+        : ui.acc.tab === 'resident'
+          ? residentList()
+          : staffAccounts()}
+    </div>`;
+  }
+
   /* ------------------------- Хотхоны бүтэц (layout model) ------------------------- */
   // Хотхоноо үгээр тайлбарлахад model (Layout.parse → Layout.generate) map, зогсоолыг зохион байгуулна.
   // Админ зөвхөн өөрийн хотхоны (D.LAYOUT.id) map-ыг харж, засна — бусад хотхонд хүрэхгүй.
@@ -2336,6 +2573,7 @@ ${y.text}</textarea
           badge: s.reqs.filter((q) => q.st === 0).length,
         },
         { h: 'staff', label: 'Ажилтан', icon: 'users' },
+        { h: 'accounts', label: 'Бүртгэл', icon: 'user', badge: pendingN() },
       ];
     },
     routes: {
@@ -2364,9 +2602,20 @@ ${y.text}</textarea
       layout: { title: 'Хотхоны бүтэц · map builder', view: layoutView, after: lyAfter },
       requests: { title: 'Хүсэлт ба SLA', topics: ['reqs', 'tick'], view: requests },
       staff: { title: 'Ажилтан', topics: ['reqs'], view: staffView },
+      accounts: { title: 'Бүртгэл · хүсэлт', view: accountsView },
     },
     actions: {
       ...lyActions,
+      // табын хооронд маягт, шинэ бүртгэлийн мэдээлэл холилдохгүй
+      accTab: (k) => set({ acc: Object.assign(ui.acc, { tab: k, f: {}, made: null }) }),
+      accRes: () => accCreate('createResident'),
+      accSet: async (a) => {
+        const [id, status] = a.split(':');
+        const r = await Api.accounts.decide(id, status);
+        S.toast(r.ok ? r.msg : 'Алдаа', r.ok ? r.acc.name : r.msg, r.ok ? 'ok' : 'bad');
+        if (r.ok) loadAccounts();
+      },
+      accStaff: () => accCreate('createStaff'),
       remind: (k) => {
         const [b, n] = k.split('-').map(Number);
         S.remind(b, n);
@@ -2444,6 +2693,7 @@ ${y.text}</textarea
     bannerTopics: ['fund', 'pay', 'payments', 'ledger', 'remind'],
     inputs: {
       ...lyInputs,
+      accF: (v, el) => (ui.acc.f[el.dataset.k] = v),
       expCat: (v) => (ui.exp.cat = v),
       expAmt: (v) => (ui.exp.amt = v),
       expT: (v) => (ui.exp.t = v),
@@ -2460,6 +2710,8 @@ ${y.text}</textarea
       },
     },
   });
+  loadAccounts();
+  Api.accounts.watch(loadAccounts);
   // нээлттэй modal-ыг (хүсэлтийн дэлгэрэнгүй, алдалтын түүх) шинэ өгөгдлөөр шинэчилнэ
   S.on((T) => {
     if (T.includes('reqs') || T.includes('leaks') || T.includes('all')) Nar.modal.refresh();
