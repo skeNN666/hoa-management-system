@@ -1,0 +1,29 @@
+/* <sokh-flower> — Shadow DOM style (хатах / цэцэглэх цэцэг). Өнгө: nar.css-ийн --token-ууд (light/dark). */
+.flower {
+  overflow: visible;
+}
+.petal-fall {
+  animation: petalFall 2.4s ease-in forwards;
+}
+@keyframes petalFall {
+  to {
+    transform: translate(var(--dx), 120px) rotate(160deg);
+    opacity: 0;
+  }
+}
+.bloom {
+  animation: bloom 1.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes bloom {
+  0% {
+    transform: scale(0.2);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

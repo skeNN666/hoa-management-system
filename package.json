@@ -5,6 +5,6 @@
   "scripts": {
     "start": "node server/server.js",
     "test": "node tests/layout.test.js && node tests/accounts.test.js && node tests/server.test.js",
-    "format": "npx prettier@3.3.3 --write \"css/*.css\" \"js/**/*.js\" \"*.html\" \"server/*.js\" \"tests/*.js\""
+    "format": "npx prettier@3.3.3 --write \"css/**/*.css\" \"js/**/*.js\" \"*.html\" \"server/*.js\" \"tests/*.js\""
   }
 }

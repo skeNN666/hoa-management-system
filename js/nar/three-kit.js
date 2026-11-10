@@ -176,7 +176,16 @@
         orbit.sph.copy(orbit.goal);
       }
     }
-    const ro = new ResizeObserver(resize);
+    // ResizeObserver-ийн callback дотор canvas-ын хэмжээг шууд өөрчилбөл тэр frame-д layout дахин
+    // өөрчлөгдөж "ResizeObserver loop completed…" гарна → дараагийн frame руу хойшлуулна (нэгтгэнэ)
+    let roRaf = 0;
+    const ro = new ResizeObserver(() => {
+      if (roRaf) return;
+      roRaf = requestAnimationFrame(() => {
+        roRaf = 0;
+        if (!dead) resize();
+      });
+    });
     ro.observe(host);
     resize();
     requestAnimationFrame(() => {

@@ -327,7 +327,11 @@
               >`,
           )}
         </div>
-        ${W.leakBuilding(b, leaks, storm)}
+        <sokh-leak-building
+          b="${b}"
+          ${Nar.flag('storm', storm)}
+          data="${Nar.json(leaks.filter((x) => x.b === b && x.st !== 'fixed'))}"
+        ></sokh-leak-building>
       </section>
       <div class="col g4 xl-sticky">
         ${open.slice(0, 2).map((x) => {
@@ -445,7 +449,6 @@
       <div class="mc-grid">${rows}</div>
     </div>`;
   }
-  let complex = null;
   function mapView() {
     const s = st();
     const L = s.lights.find((l) => l.id === ui.selL) || s.lights[0];
@@ -460,7 +463,7 @@
     };
     return html`<div class="col g4">
       <section class="card p0 ovh map-box">
-        ${Nar.keep('complex3d', 'fill')}
+        <sokh-scene3d key="complex3d"></sokh-scene3d>
         <div class="map-title">
           <b class="${cx('t24 b9', ui.night && 'night')}">${D.LAYOUT.n}</b>
           <p class="t12 b sm-up" style="color:#7A7365">
@@ -565,12 +568,13 @@
       </div>
     </div>`;
   }
-  function mapAfter() {
-    if (!complex)
-      complex = Scenes.complex(Nar.host('complex3d'), {
+  function mapAfter(view) {
+    const complex = view.querySelector('sokh-scene3d').use((host) =>
+      Scenes.complex(host, {
         onSelectB: (i) => set({ selB: i }),
         onSelectLight: (id) => set({ selL: id, selB: null }),
-      });
+      }),
+    );
     complex.update({
       lights: st().lights,
       leaks: st().leaks,
@@ -909,7 +913,7 @@
         </div>
         <a href="#/payments" class="btn s">${ic('users', 15)}Хэн төлсөн бэ →</a>
       </div>
-      ${Report.fundStats(f)}
+      <sokh-fund-stats data="${Nar.json(f)}"></sokh-fund-stats>
       <section class="card pad col g2">
         <div class="flex jb ic mb1">
           <h2 class="h2">Энэ сард төлөх зардал</h2>
@@ -949,7 +953,7 @@
             <h2 class="h2">Зарлага · юунд зарцуулав</h2>
             <b class="num badc">−${money(Report.sum(L))}</b>
           </div>
-          ${L.length ? Report.catBars(L) : ''}
+          <sokh-cat-bars data="${Nar.json(L)}"></sokh-cat-bars>
           ${isCur
             ? html`<div class="add-box col g2">
                 <span class="th">Шинэ зарлага нийтлэх</span>
@@ -978,7 +982,7 @@
                 <button class="btn p self-start" data-act="addExp">${ic('plus', 15)}Нийтлэх</button>
               </div>`
             : ''}
-          ${Report.ledgerRows(L)}
+          <sokh-ledger data="${Nar.json(L)}"></sokh-ledger>
         </section>
         <section class="card pad col g3">
           <div class="flex jb ic">
@@ -1009,7 +1013,7 @@
                 <button class="btn p self-start" data-act="addWork">${ic('plus', 15)}Нэмэх</button>
               </div>`
             : ''}
-          ${Report.workRows(Wk)}
+          <sokh-work-timeline data="${Nar.json(Wk)}"></sokh-work-timeline>
         </section>
       </div>
       <section class="card pad col g3">
@@ -1017,7 +1021,7 @@
           <h2 class="h2">Төлбөрийн гүйцэтгэл · байраар</h2>
           <span class="muted t12">Оршин суугчид айлын нэргүйгээр, зөвхөн байрны хувиар харна</span>
         </div>
-        ${Report.bldRates(S.units)}
+        <sokh-bld-rates data="${Nar.json(Report.rates(S.units))}"></sokh-bld-rates>
       </section>
     </div>`;
   }
@@ -1135,7 +1139,6 @@
   /* ------------------------------ Зогсоол ------------------------------ */
   const SL = ['Сул', 'Эзэмшсэн', 'Зочин · түр', 'Захиалсан'];
   const SLT = ['c-ok', 'c-mute', 'c-warn', 'c-acc'];
-  const parkScenes = {};
   function parking() {
     const nP = Layout.slots(D.LAYOUT),
       nG = D.LAYOUT.garage;
@@ -1167,7 +1170,7 @@
       </div>
       <div class="cols c1 xl-side" style="--sw:320px">
         <section class="card p0 ovh park-box">
-          ${Nar.keep('park-' + ui.zone, 'fill')}
+          <sokh-scene3d key="${'park-' + ui.zone}"></sokh-scene3d>
           <div class="map-title">
             <b class="t20 b9">${ui.zone === 'p' ? 'Гадна зогсоол' : 'Газар доорх гараж'}</b>
           </div>
@@ -1239,14 +1242,18 @@
       </div>
     </div>`;
   }
-  function parkAfter() {
+  function parkAfter(view) {
     const k = ui.zone;
-    if (!parkScenes[k])
-      parkScenes[k] = Scenes.parking(Nar.host('park-' + k), {
-        zone: k,
-        onPick: (s) => set({ selSlot: s.id }),
-      });
-    parkScenes[k].update({ slots: st().slots, selected: ui.selSlot });
+    // zone бүр өөрийн key-тэй тул гадна зогсоол, гараж тус тусдаа 3D үзэгдэлтэй
+    view
+      .querySelector('sokh-scene3d')
+      .use((host) =>
+        Scenes.parking(host, {
+          zone: k,
+          onPick: (s) => set({ selSlot: s.id }),
+        }),
+      )
+      .update({ slots: st().slots, selected: ui.selSlot });
   }
 
   /* ------------------------------ Хүсэлт ------------------------------ */
@@ -1922,7 +1929,7 @@
     const t = e.dataTransfer.getData('text/plain');
     if (!box || !t.startsWith('ly:')) return;
     e.preventDefault();
-    const p = lyPt(box.querySelector('svg'), e);
+    const p = lyPt(box.querySelector('.ly-svg'), e);
     lyAddAt(t.slice(3), p.x, p.y);
   });
   function lyAddAt(kind, x, z) {
@@ -1973,8 +1980,7 @@
   }
 
   /* 3D preview — засаж буй layout-ыг жинхэнэ 3D map-аар харуулна */
-  let ly3 = null,
-    ly3key = '',
+  let ly3key = '',
     ly3state = null;
   function lyPreviewState(L) {
     const r = Layout.rng(7);
@@ -1997,25 +2003,26 @@
       selLight: null,
     };
   }
-  function lyAfter() {
+  function lyAfter(view) {
     const y = ui.ly;
-    if (!y || y.view !== '3d') return;
+    const el = view.querySelector('sokh-scene3d[key="ly3d"]');
+    if (!y || y.view !== '3d' || !el) return;
     const key = JSON.stringify(y.L);
-    if (!ly3 || key !== ly3key) {
+    if (key !== ly3key) {
       ly3key = key;
-      if (ly3) ly3.dispose(); // хуучин WebGL-ийг чөлөөлнө
-      const host = Nar.host('ly3d');
-      host.innerHTML = '';
+      el.reset(); // хуучин WebGL-ийг чөлөөлнө
       ly3state = lyPreviewState(y.L);
-      ly3 = Scenes.complex(host, {
+    }
+    const ly3 = el.use((host) =>
+      Scenes.complex(host, {
         layout: y.L,
         onSelectB: (i) => {
           y.sel = i == null ? null : 'b:' + i;
           set({});
         },
         onSelectLight: () => {},
-      });
-    }
+      }),
+    );
     const o = y.sel && y.sel.startsWith('b:') ? Number(y.sel.slice(2)) : null;
     ly3.update({ ...ly3state, selB: o });
   }
@@ -2169,7 +2176,7 @@
               </div>`
             : ''}
           ${y.view === '3d'
-            ? html`<div class="ly-3d card p0 ovh">${Nar.keep('ly3d', 'fill')}</div>`
+            ? html`<div class="ly-3d card p0 ovh"><sokh-scene3d key="ly3d"></sokh-scene3d></div>`
             : html`<div class="ly-box">
                 ${Nar.raw(Layout.svg(L, { drag: true, sel: y.sel, vb: y.vb }))}
               </div>`}
@@ -2530,7 +2537,6 @@ ${y.text}</textarea
     role: 'admin',
     brand: 'СӨХ Platform',
     sub: D.LAYOUT.n + ' · ' + NB + ' байр',
-    mobile: 'drawer',
     nav: () => {
       const s = st();
       return [

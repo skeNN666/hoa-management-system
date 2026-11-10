@@ -1,4 +1,14 @@
-/* СӨХ Platform — SVG/HTML widget: ажилтны засварын анимаци, ус алдалтын байрны зүсэлт, цэцэг, хөтөч Сараа, skyline. */
+/*
+ * СӨХ Platform — SVG widget-ууд, Shadow DOM Web Component хэлбэрээр (CSS: css/components/*.css):
+ *   <sokh-worker-scene kind>        ажилтны засварын анимаци
+ *   <sokh-leak-building b storm data> ус алдалтын байрны зүсэлт
+ *   <sokh-flower wilt paid size>    төлбөрөөс хамаарч хатах / цэцэглэх цэцэг
+ *   <sokh-avatar size>              хөтөч Сараа
+ *   <sokh-ring value size>          тойрог прогресс
+ *   <sokh-fund-jar cover paid size> хотхоны сангийн сав
+ *   <sokh-skyline>                  шөнийн хот (login, landing)
+ * W.kindOf(cat, st) — хүсэлтийн төрлөөс аль анимаци харуулахыг сонгоно.
+ */
 (function () {
   const kindOf = (cat, st) =>
     st === 1
@@ -80,8 +90,6 @@
     return Nar.raw(
       '<div class="wscene ' +
         cls +
-        '" data-key="ws-' +
-        kind +
         '"><svg viewBox="0 0 300 150" aria-hidden="true"><rect x="0" y="134" width="300" height="16" rx="3" fill="var(--line)"/>' +
         s +
         '</svg></div>',
@@ -298,14 +306,8 @@
 
   /* Шөнийн хотын skyline (login, landing hero): 3 давхар гүн (алс, ар эгнээ, урд эгнээ),
    * айл бүрийн гэрэл (2 цонх = 1 айл), дээврийн тоноглол, гудамжны гэрэл, бодит хэлбэртэй машинууд.
-   * Seed-тэй PRNG → үр дүн тогтмол. ~4k элементтэй тул keep-alive host-д нэг удаа зурна:
-   * hero дахин render хийхэд SVG-г дахин parse/morph хийхгүй, анимаци тасрахгүй. */
-  function skyline() {
-    const h = Nar.host('skyline');
-    if (!h.firstChild) h.innerHTML = buildSkyline();
-    return Nar.keep('skyline', 'fill');
-  }
-
+   * Seed-тэй PRNG → үр дүн тогтмол. ~4k элементтэй тул <sokh-skyline> нэг удаа parse хийнэ:
+   * hero дахин render хийхэд morph нь component-ийн дотор хүрэхгүй, анимаци тасрахгүй. */
   function buildSkyline() {
     let seed = 20261102;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -1207,5 +1209,78 @@
     );
   }
 
-  window.W = { kindOf, workerScene, leakBuilding, flower, avatar, skyline, ring, fundJar };
+  /* ======================================================================
+     Web Component-ууд (Shadow DOM): SVG болон CSS нь бүрэн тусгаарлагдсан.
+     CSS: css/components/<нэр>.css (өнгө нь nar.css-ийн --token-оор light/dark-д дагана)
+     ====================================================================== */
+  const C = 'css/components/';
+  const { define } = Nar;
+
+  /** <sokh-worker-scene kind="lift|pipe|light|gen|walk"> — засварын явцын анимаци */
+  define('sokh-worker-scene', {
+    attrs: ['kind'],
+    shadow: true,
+    styles: [C + 'worker-scene.css'],
+    render: (el) => workerScene(el.str('kind', 'gen')),
+  });
+
+  /** <sokh-leak-building b="3" storm data='[...leaks]'> — байрны зүсэлт, бороо, ус алдалт */
+  define('sokh-leak-building', {
+    attrs: ['b', 'storm', 'data'],
+    shadow: true,
+    styles: [C + 'leak-building.css'],
+    render: (el) => leakBuilding(el.num('b', 1), el.data('data', []), el.bool('storm')),
+  });
+
+  /** <sokh-flower wilt="0.4" paid size="130"> — төлбөр төлөхгүй бол хатна */
+  define('sokh-flower', {
+    attrs: ['wilt', 'paid', 'size'],
+    shadow: true,
+    styles: [C + 'flower.css'],
+    css: ':host{display:inline-flex;flex-shrink:0}',
+    render: (el) => flower(el.num('wilt'), el.bool('paid'), el.num('size', 170)),
+  });
+
+  /** <sokh-avatar size="50"> — хөтөч Сараа */
+  define('sokh-avatar', {
+    attrs: ['size'],
+    shadow: true,
+    styles: [C + 'avatar.css'],
+    css: ':host{display:inline-flex}',
+    render: (el) => avatar(el.num('size', 78)),
+  });
+
+  /** <sokh-ring value="0.6" size="90"> — тойрог прогресс */
+  define('sokh-ring', {
+    attrs: ['value', 'size'],
+    shadow: true,
+    css: ':host{display:inline-flex;flex-shrink:0}svg{display:block}',
+    render: (el) => ring(el.num('value'), el.num('size', 90)),
+  });
+
+  /** <sokh-fund-jar cover="0.86" paid size="96"> — хотхоны сангийн сав */
+  define('sokh-fund-jar', {
+    attrs: ['cover', 'paid', 'size'],
+    shadow: true,
+    styles: [C + 'fund-jar.css'],
+    css: ':host{display:inline-flex;flex-shrink:0}',
+    render: (el) => fundJar(el.num('cover'), el.bool('paid'), el.num('size', 120)),
+  });
+
+  /** <sokh-skyline> — шөнийн хот. ~4k элементтэй тул SVG-г нэг л удаа үүсгээд clone хийнэ */
+  let skyTpl = null;
+  define('sokh-skyline', {
+    shadow: true,
+    css: ':host{display:block;pointer-events:none}svg{display:block;width:100%;height:100%}',
+    init(el) {
+      if (!skyTpl) {
+        skyTpl = document.createElement('template');
+        skyTpl.innerHTML = buildSkyline();
+      }
+      el.root.style.cssText = 'width:100%;height:100%';
+      el.root.appendChild(skyTpl.content.cloneNode(true));
+    },
+  });
+
+  window.W = { kindOf };
 })();

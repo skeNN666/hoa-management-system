@@ -54,7 +54,7 @@
                   : 'Төлөх хугацаа: 10/10 · 5 хоног үлдсэн'}</span
               >
             </div>
-            ${W.flower(s.wilt, s.paid, 130)}
+            <sokh-flower wilt="${s.wilt}" ${Nar.flag('paid', s.paid)} size="130"></sokh-flower>
           </div>
           <div class="flex ic g3">
             <span class="t12 b muted nowrap">Цэцгийн амь</span>
@@ -157,7 +157,7 @@
               </div>
               <b>#${cur.id} ${cur.title}</b>
               ${kind
-                ? W.workerScene(kind)
+                ? html`<sokh-worker-scene kind="${kind}"></sokh-worker-scene>`
                 : html`<div class="wscene ph">
                     ${cur.st === 4
                       ? html`<b class="okc t18">✓ Шийдэгдлээ</b>`
@@ -223,8 +223,8 @@
     ]);
     return html`<div class="cols c1 lg-c2 max-5">
       <section class="card p5 col g3 ic center">
-        ${W.flower(s.wilt, s.paid, 150)}<span class="muted t14"
-          >10-р сарын нэхэмжлэл · INV-2026-1024</span
+        <sokh-flower wilt="${s.wilt}" ${Nar.flag('paid', s.paid)} size="150"></sokh-flower
+        ><span class="muted t14">10-р сарын нэхэмжлэл · INV-2026-1024</span
         ><b class="${cx('num t40', s.paid && 'okc')}">₮97,000</b>
         ${s.paid
           ? html`<span class="chip lg c-ok">${ic('ok', 15)}Төлөгдсөн · баярлалаа!</span>`
@@ -248,10 +248,10 @@
           <a href="#/report" class="link t12">Тайлан →</a>
         </div>
         <p class="muted t12">Энэ сарын нийтлэгдсэн зарлагын бүтцээр тооцов (ойролцоогоор).</p>
-        ${Report.billShare(
-          ME.bill,
-          s.ledger.filter((x) => x.month === D.CUR_MONTH),
-        )}
+        <sokh-bill-share
+          bill="${ME.bill}"
+          data="${Nar.json(s.ledger.filter((x) => x.month === D.CUR_MONTH))}"
+        ></sokh-bill-share>
       </section>
       <section class="card p5 col g1">
         <h2 class="h2 mb2">Төлбөрийн түүх</h2>
@@ -278,7 +278,7 @@
     return html`<section
       class="${cx('card p4 flex ic g4 fund-home', !s.paid && f.short && 'nudge')}"
     >
-      ${W.fundJar(f.cover, s.paid, 96)}
+      <sokh-fund-jar cover="${f.cover}" ${Nar.flag('paid', s.paid)} size="96"></sokh-fund-jar>
       <div class="grow col g2">
         <span class="th">Хотхоны сан · ${Report.mLabel(D.CUR_MONTH)}</span>
         <b class="t18"
@@ -319,7 +319,7 @@
     const pub = s.reportPub[m];
     return html`<div class="col g4">
       <section class="${cx('card pad flex wrap ic g4', !s.paid && f.short && 'nudge')}">
-        ${W.fundJar(f.cover, s.paid, 84)}
+        <sokh-fund-jar cover="${f.cover}" ${Nar.flag('paid', s.paid)} size="84"></sokh-fund-jar>
         <div class="grow col g2" style="min-width:220px">
           <h2 class="h2">СӨХ-ийн мөнгө юунд зарцуулагдаж байна вэ</h2>
           <p class="muted t13">
@@ -335,7 +335,7 @@
               </button>`}
         </div>
       </section>
-      ${Report.fundStats(f)}
+      <sokh-fund-stats data="${Nar.json(f)}"></sokh-fund-stats>
       <div class="flex wrap g2 jb ic">
         ${seg(D.MONTHS, m, 'repM')}
         ${pub
@@ -348,14 +348,15 @@
             <h2 class="h2">Зарлага</h2>
             <b class="num badc">−${D.money(Report.sum(L))}</b>
           </div>
-          ${L.length ? Report.catBars(L) : ''} ${Report.ledgerRows(L)}
+          <sokh-cat-bars data="${Nar.json(L)}"></sokh-cat-bars>
+          <sokh-ledger data="${Nar.json(L)}"></sokh-ledger>
         </section>
         <section class="card pad col g3">
           <div class="flex jb ic">
             <h2 class="h2">Хийсэн ажил</h2>
             <span class="chip c-acc num">${Wk.length} ажил</span>
           </div>
-          ${Report.workRows(Wk)}
+          <sokh-work-timeline data="${Nar.json(Wk)}"></sokh-work-timeline>
         </section>
       </div>
       <section class="card pad col g3">
@@ -363,12 +364,11 @@
           <h2 class="h2">Төлбөрийн гүйцэтгэл · байраар</h2>
           <span class="muted t12">★ — таны байр</span>
         </div>
-        ${Report.bldRates(S.units, ME.b)}
+        <sokh-bld-rates data="${Nar.json(Report.rates(S.units))}" mine="${ME.b}"></sokh-bld-rates>
       </section>
     </div>`;
   }
 
-  let lot = null;
   function parkPage() {
     const s = st();
     const p = s.park;
@@ -424,7 +424,7 @@
     return html`<div class="col g4">
       <section class="card p5 col g3 ic center">${side}</section>
       <section class="card p0 ovh park-box">
-        ${Nar.keep('lot3d', 'fill')}
+        <sokh-scene3d key="lot3d"></sokh-scene3d>
         <div class="map-title">
           <b class="t18 b9">Гадна зогсоол · ${Layout.slots(D.LAYOUT)} байр</b>
           <p class="t12 b" style="color:#7A7365">Ногоон P — сул. Дарж 10 минут захиална.</p>
@@ -432,14 +432,15 @@
       </section>
     </div>`;
   }
-  function parkAfter() {
-    if (!lot)
-      lot = Scenes.parking(Nar.host('lot3d'), {
+  function parkAfter(view) {
+    const lot = view.querySelector('sokh-scene3d').use((host) =>
+      Scenes.parking(host, {
         zone: 'p',
         onPick: (sl) => {
           if (sl.st === 0 && st().park.stage === 'idle') S.reserveSlot(sl.id);
         },
-      });
+      }),
+    );
     lot.update({ slots: st().slots, selected: st().park.slot });
   }
 
@@ -652,11 +653,11 @@
         data-arg="g:open"
         aria-label="СӨХ хөтөч Сараа-г нээх"
       >
-        ${W.avatar(50)}<span class="guide-dot"></span>
+        <sokh-avatar size="50"></sokh-avatar><span class="guide-dot"></span>
       </button>`;
     const cur = guideSteps()[ui.guide];
     return html`<div class="guide view-in" role="dialog" aria-label="СӨХ хөтөч Сараа">
-      <div class="bob no-shrink guide-av">${W.avatar()}</div>
+      <div class="bob no-shrink guide-av"><sokh-avatar></sokh-avatar></div>
       <div class="card guide-bubble col g2">
         <div class="flex ic g2">
           <b class="t13">Сараа</b><span class="muted t11 b">СӨХ хөтөч</span
@@ -719,7 +720,6 @@
     role: 'resident',
     brand: 'СӨХ Platform',
     sub: D.LAYOUT.n + ' · ' + D.ME.b + '-р байр ' + D.ME.n + ' тоот',
-    mobile: 'bottom',
     profile: () =>
       html`<div class="side-profile">
         <span class="avatar">Б</span>

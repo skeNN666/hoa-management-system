@@ -27,9 +27,175 @@
     </script>
   </head>
   <body>
-    <noscript>Энэ систем ажиллахын тулд JavaScript шаардлагатай.</noscript>
+    <div class="ld">
+      <header class="ld-nav">
+        <div class="ld-wrap flex ic g3">
+          <a href="index.html" class="flex ic g2 ld-brand"
+            ><span class="logo"><nar-icon name="building" size="20"></nar-icon></span
+            ><b class="t15">СӨХ Platform</b></a
+          >
+          <nav class="ml-auto flex ic g1">
+            <a class="ld-link md-up" href="#systems">Систем</a>
+            <a class="ld-link md-up" href="#features">Боломжууд</a>
+            <a class="ld-link md-up" href="#how">Хэрхэн</a>
+            <a class="btn p s" href="#systems">Нэвтрэх</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="ld-hero">
+        <sokh-skyline></sokh-skyline>
+        <div class="lg-hero-fade lg-down"></div>
+        <div class="ld-wrap ld-hero-in">
+          <span class="ld-pill"
+            ><nar-icon name="star" size="14"></nar-icon> Хотхоны ухаалаг удирдлага</span
+          >
+          <h1 class="ld-h1">СӨХ, ажилтан, оршин суугч — нэг системд</h1>
+          <p class="ld-lead">
+            Төлбөр, хүсэлт, засвар үйлчилгээ, зогсоол, ус алдалтыг нэг дороос, шууд, ил тод
+            удирдана.
+          </p>
+          <div class="flex g3 wrap">
+            <a class="btn p lg" href="#systems"
+              >Систем рүү орох <nar-icon name="arrow-right" size="18"></nar-icon
+            ></a>
+            <a class="btn glass lg" href="#features">Дэлгэрэнгүй</a>
+          </div>
+          <sokh-landing-stats></sokh-landing-stats>
+        </div>
+      </section>
+
+      <section id="systems" class="ld-sec">
+        <div class="ld-wrap">
+          <div class="ld-head">
+            <span class="th">Систем</span>
+            <h2 class="ld-h2">Өөрийн системээ сонгоно уу</h2>
+            <p class="muted">Сонгосон системийн нэвтрэх хуудас руу шууд шилжинэ.</p>
+          </div>
+          <div class="ld-grid3">
+            <sokh-system-card
+              role="admin"
+              icon="shield"
+              heading="СӨХ-ийн систем"
+              sub="Удирдлага, санхүү"
+              desc="Төлбөр хураалт, зарлага, ажилтны хуваарь, зогсоол түрээс, хотхоны map-ыг нэг дороос удирдана."
+              points="Санхүү, тайлан|Хотхоны 3D map builder|Зогсоол түрээслэх"
+            ></sokh-system-card>
+            <sokh-system-card
+              role="staff"
+              icon="wrench"
+              heading="Ажилтны систем"
+              sub="Даалгавар, засвар"
+              desc="Оршин суугчийн хүсэлт шууд ирж, даалгавраа авч, засвар үйлчилгээгээ бүртгэнэ."
+              points="Шууд ирэх хүсэлт|Ус алдалтын дуудлага|Хийсэн ажлын түүх"
+            ></sokh-system-card>
+            <sokh-system-card
+              role="resident"
+              icon="home"
+              heading="Оршин суугчийн систем"
+              sub="Төлбөр, хүсэлт"
+              desc="СӨХ-ийн төлбөрөө төлж, засварын хүсэлт илгээн, сангийн зарцуулалтыг ил тод харна."
+              points="Төлбөр, нэхэмжлэл|Засварын хүсэлт|Ил тод тайлан"
+            ></sokh-system-card>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="ld-sec ld-alt">
+        <div class="ld-wrap">
+          <div class="ld-head">
+            <span class="th">Боломжууд</span>
+            <h2 class="ld-h2">Хотхоны бүх ажил нэг дор</h2>
+          </div>
+          <div class="ld-grid3">
+            <sokh-feature
+              icon="wallet"
+              heading="Төлбөр"
+              desc="Сарын төлбөр, өр, төлөлтийн хувийг байр, айл бүрээр харна."
+            ></sokh-feature>
+            <sokh-feature
+              icon="inbox"
+              heading="Хүсэлт"
+              desc="Оршин суугчийн хүсэлт ажилтан, удирдлагад тэр дороо очно."
+            ></sokh-feature>
+            <sokh-feature
+              icon="droplet"
+              heading="Ус алдалт"
+              desc="Алдалтын байр, давхрыг зүсэлтээр харж, шуурхай шийднэ."
+            ></sokh-feature>
+            <sokh-feature
+              icon="car"
+              heading="Зогсоол"
+              desc="Зогсоолын эгнээ, түрээс, орлогыг 3D-ээр удирдана."
+            ></sokh-feature>
+            <sokh-feature
+              icon="map"
+              heading="3D map"
+              desc="Хотхон бүр өөрийн байр, зам, зогсоолтой жинхэнэ 3D map-тай."
+            ></sokh-feature>
+            <sokh-feature
+              icon="chart"
+              heading="Ил тод тайлан"
+              desc="Сан, зарлага, хийсэн ажлыг оршин суугч бүр харна."
+            ></sokh-feature>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="ld-sec">
+        <div class="ld-wrap">
+          <div class="ld-head">
+            <span class="th">Хэрхэн</span>
+            <h2 class="ld-h2">3 алхмаар эхэлнэ</h2>
+          </div>
+          <ol class="ld-grid3">
+            <li class="ld-step">
+              <span class="ld-step-n">1</span><b class="t15">Систем сонгох</b>
+              <p class="muted t13">СӨХ, ажилтан, оршин суугч — өөрийн системээ сонгоно.</p>
+            </li>
+            <li class="ld-step">
+              <span class="ld-step-n">2</span><b class="t15">Хотхоноо сонгох</b>
+              <p class="muted t13">Олон хотхоны дундаас өөрийн хотхон / СӨХ-өө сонгоно.</p>
+            </li>
+            <li class="ld-step">
+              <span class="ld-step-n">3</span><b class="t15">Нэвтрэх</b>
+              <p class="muted t13">Нэвтрэх нэр, нууц үгээрээ орж ажиллаж эхэлнэ.</p>
+            </li>
+          </ol>
+          <div class="ld-cta card">
+            <div class="col g1">
+              <b class="t18">Бэлэн үү?</b
+              ><span class="muted t13">Системээ сонгоод нэвтрэх хуудас руу орно.</span>
+            </div>
+            <div class="flex g2 wrap">
+              <a class="btn" href="login.html?role=admin"
+                ><nar-icon name="shield" size="16"></nar-icon>Удирдлага</a
+              >
+              <a class="btn" href="login.html?role=staff"
+                ><nar-icon name="wrench" size="16"></nar-icon>Даалгавар</a
+              >
+              <a class="btn" href="login.html?role=resident"
+                ><nar-icon name="home" size="16"></nar-icon>Төлбөр</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="ld-foot">
+        <div class="ld-wrap flex ic g3 wrap">
+          <span class="flex ic g2"
+            ><span class="logo s"><nar-icon name="building" size="16"></nar-icon></span
+            ><b>СӨХ Platform</b></span
+          >
+          <span class="muted t13 ml-auto">© 2026 СӨХ Platform · Улаанбаатар</span>
+        </div>
+      </footer>
+    </div>
+
     <script src="js/nar/icons.js"></script>
     <script src="js/nar/nar.js"></script>
+    <script src="js/components.js"></script>
     <script src="js/widgets.js"></script>
     <script src="js/api.js"></script>
     <script src="js/layout.js"></script>

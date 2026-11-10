@@ -347,7 +347,8 @@ i {
   padding-top: 8px;
   padding-bottom: 8px;
 }
-.list > * + * {
+.list > * + *,
+.list > :is(sokh-alert) + :is(sokh-alert) > * {
   border-top: 1px solid var(--line);
 }
 .p2 {
@@ -821,7 +822,8 @@ textarea.inp {
 .inp-icon {
   position: relative;
 }
-.inp-icon > svg {
+.inp-icon > svg,
+.inp-icon > nar-icon > svg {
   position: absolute;
   left: 13px;
   top: 50%;
@@ -891,6 +893,26 @@ button.trow {
   padding: 32px;
   text-align: center;
   color: var(--muted);
+}
+
+/* Web component (Light DOM) host: layout-д оролцохгүй, дотор талын элемент шууд flex/grid-д орно */
+nar-icon,
+nar-modal,
+sokh-shell,
+sokh-switch,
+sokh-seg,
+sokh-prio,
+sokh-theme-btn,
+sokh-stat,
+sokh-alert,
+sokh-bar,
+sokh-fund-stats,
+sokh-cat-bars,
+sokh-ledger,
+sokh-work-timeline,
+sokh-bld-rates,
+sokh-bill-share {
+  display: contents;
 }
 
 /* svg icon */

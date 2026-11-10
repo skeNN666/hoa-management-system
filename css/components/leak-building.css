@@ -1,0 +1,286 @@
+/* <sokh-leak-building> — Shadow DOM style (байрны зүсэлт, бороо, стояк, ус алдалт). Өнгө: nar.css-ийн --token-ууд (light/dark). */
+.rain {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lk-bld {
+  position: relative;
+  border-radius: 16px;
+  padding: 14px 10px 0;
+  background: linear-gradient(rgba(46, 72, 110, 0.95), rgba(26, 44, 70, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+@media (min-width: 640px) {
+  .lk-bld {
+    padding: 14px 14px 0;
+  }
+}
+.lk-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+}
+@media (min-width: 640px) {
+  .lk-row {
+    height: 32px;
+  }
+}
+.lk-f {
+  width: 28px;
+  text-align: right;
+  font-size: 10px;
+  font-weight: 800;
+  color: #8fa3b8;
+}
+.lk-cells {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--per, 13), minmax(0, 1fr)); /* давхартаа хэдэн айл — layout */
+  gap: 3px;
+  height: 100%;
+  padding: 3px 0;
+}
+@media (min-width: 640px) {
+  .lk-cells {
+    gap: 4px;
+  }
+}
+.riser {
+  position: absolute;
+  width: 5px;
+  border-radius: 2px;
+  z-index: 0;
+  top: -14px;
+  height: calc(1600% + 22px);
+}
+.lk-cell {
+  position: relative;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.2s;
+  z-index: 1;
+}
+.lk-cell:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.lk-cell.lk-active {
+  background: #ff5a4e;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 34px 12px rgba(255, 90, 78, 0.6);
+  z-index: 10;
+}
+.lk-cell.lk-closed {
+  background: #5b7da8;
+  box-shadow: 0 0 0 2px #fff;
+  z-index: 10;
+}
+.lk-cell.lk-fixing {
+  z-index: 10;
+  background: repeating-linear-gradient(45deg, #f0b03e 0 6px, #d99620 6px 12px);
+  background-size: 17px 17px;
+  animation: stripe 1s linear infinite;
+}
+.lk-cell.lk-below {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(240, 176, 62, 0.6) 0 5px,
+    rgba(240, 176, 62, 0.25) 5px 10px
+  );
+}
+.chipd {
+  position: absolute;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: #3ddc84;
+  box-shadow: 0 0 4px rgba(61, 220, 132, 0.8);
+}
+.chipd.l {
+  left: 4px;
+}
+.chipd.r {
+  right: 4px;
+}
+.lk-rip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.lk-rip i {
+  position: absolute;
+  left: -32px;
+  top: -15px;
+  width: 64px;
+  height: 30px;
+  border-radius: 99px;
+  border: 2px solid #96d2ff;
+}
+.lk-cell .stain {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 100%;
+  height: 110px;
+  border-radius: 0 0 8px 8px;
+  pointer-events: none;
+}
+.lk-tag {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  margin-left: -30px;
+  white-space: nowrap;
+  background: #ff5a4e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+.lk-base {
+  margin: 6px -10px 0;
+  padding: 10px 16px;
+  border-radius: 0 0 16px 16px;
+  background: #0b1626;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #afbdcc;
+}
+@media (min-width: 640px) {
+  .lk-base {
+    margin: 6px -14px 0;
+  }
+}
+.spin {
+  width: 24px;
+  height: 24px;
+  border-radius: 99px;
+  border: 3px solid #2f8fd6;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes bob {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes ripple {
+  0% {
+    transform: scale(0.2);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes flow {
+  to {
+    background-position: 0 20px;
+  }
+}
+.rain i {
+  position: absolute;
+  top: -60px;
+  width: 1.6px;
+  border-radius: 2px;
+  background: linear-gradient(rgba(170, 210, 255, 0), rgba(190, 225, 255, 0.6));
+  animation: rain linear infinite;
+}
+@keyframes rain {
+  from {
+    transform: translate(0, 0) rotate(14deg);
+  }
+  to {
+    transform: translate(-210px, 980px) rotate(14deg);
+  }
+}
+.riser {
+  background: repeating-linear-gradient(0deg, #2f8fd6 0 8px, #7cc6ff 8px 14px);
+  background-size: 100% 14px;
+  animation: riser 0.9s linear infinite;
+  box-shadow: 0 0 10px rgba(79, 176, 245, 0.7);
+}
+.riser.alarm {
+  background: repeating-linear-gradient(0deg, #e0525a 0 8px, #ff9aa0 8px 14px);
+  background-size: 100% 14px;
+  animation-duration: 0.4s;
+}
+.riser.stop {
+  background: #64748b;
+  animation: none;
+  box-shadow: none;
+}
+@keyframes riser {
+  to {
+    background-position: 0 -14px;
+  }
+}
+.stain {
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(90, 170, 255, 0) 0 6px,
+    rgba(110, 190, 255, 0.6) 6px 14px
+  );
+  background-size: 100% 20px;
+  -webkit-mask-image: linear-gradient(#000 20%, transparent);
+  mask-image: linear-gradient(#000 20%, transparent);
+}
+/* shadow дотор хэрэглэгдэх жижиг utility (nar.css-ээс) */
+.rel {
+  position: relative;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+}
+.grow {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.c-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.bob {
+  animation: bob 2.6s ease-in-out infinite;
+}
+.ripple {
+  animation: ripple 1.8s ease-out infinite;
+}
+.flow {
+  animation: flow 0.45s linear infinite;
+}

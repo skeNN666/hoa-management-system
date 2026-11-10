@@ -63,7 +63,9 @@
               <span class="num faint t12 b">#${next.id} · ${next.cat}</span
               ><b class="t24 tight">${next.title}</b
               ><span class="muted t14">${next.b}-р байр · ${next.u} тоот</span>
-              ${kind ? W.workerScene(kind, 'max-xl') : ''}${kind ? workNote(kind) : ''}
+              ${kind
+                ? html`<sokh-worker-scene class="max-xl" kind="${kind}"></sokh-worker-scene>`
+                : ''}${kind ? workNote(kind) : ''}
               <span class="btn p self-start mt1"
                 >${next.st === 1 ? 'Ажил эхлүүлэх' : 'Үргэлжлүүлэх'} ${ic('arrow-right', 16)}</span
               ></a
@@ -91,7 +93,7 @@
       </div>
       <aside class="col g4">
         <section class="card p4 flex ic g4">
-          ${W.ring(done / Math.max(1, total))}
+          <sokh-ring value="${done / Math.max(1, total)}"></sokh-ring>
           <div>
             <b class="t18">${Math.round((done / Math.max(1, total)) * 100)}% дууссан</b>
             <p class="muted t13">Өнөөдөр хийх ажил: ${total}</p>
@@ -183,7 +185,10 @@
               ><span class="chip c-acc">${REQ_STATUS[t.st]}</span>
             </div>
             <div class="card flat p3 t13">${t.desc}</div>
-            ${kind ? html`${W.workerScene(kind, 'max-xl')}${workNote(kind, true)}` : ''}
+            ${kind
+              ? html`<sokh-worker-scene class="max-xl" kind="${kind}"></sokh-worker-scene
+                  >${workNote(kind, true)}`
+              : ''}
             <div class="hsteps">
               ${STEPS.map(
                 (l, i) =>
@@ -291,7 +296,6 @@
     role: 'staff',
     brand: 'СӨХ Staff',
     sub: D.LAYOUT.n,
-    mobile: 'bottom',
     profile: () =>
       html`<div class="side-profile">
         <span class="avatar">НА<i class="on"></i></span>

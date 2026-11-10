@@ -6,9 +6,9 @@
    • leader      — олон таб нээлттэй үед зөвхөн нэг нь симуляц ажиллуулна
    • morph       — шинэ HTML-ийг хуучин DOM-той харьцуулж зөвхөн өөрчлөгдсөнийг солино
                    (focus, scroll, animation, 3D canvas алдагдахгүй)
+   • define      — Web Component (Custom Element) тодорхойлох: Light DOM эсвэл Shadow DOM
    • app         — region-ууд, hash router, data-act / data-in event delegation
-   • keep        — 3D canvas зэрэг байнгын элементийг дахин зурахад хадгална
-   • modal, toast
+   • modal, toast — <nar-modal>, <nar-toast> component
    ========================================================================== */
 (function () {
   const Nar = (window.Nar = window.Nar || {});
@@ -41,7 +41,11 @@
   }
   /** cx('btn', on && 'on') → "btn on" */
   const cx = (...a) => a.filter(Boolean).join(' ');
-  Object.assign(Nar, { esc, raw, html, cx, Raw });
+  /** Component-д объект дамжуулах: data="${Nar.json(list)}" (html`` escape хийнэ) */
+  const json = (v) => JSON.stringify(v == null ? null : v);
+  /** Boolean attribute: <sokh-flower ${Nar.flag('paid', s.paid)}> */
+  const flag = (name, on) => raw(on ? name : '');
+  Object.assign(Nar, { esc, raw, html, cx, Raw, json, flag });
 
   /* ---------- store ---------- */
   function createStore({ key, version = 1, init, keep = [] }) {
@@ -159,6 +163,9 @@
     }
     syncAttrs(a, b);
     if (a.hasAttribute('data-keep')) return a; // keep-alive: дотор нь хүрэхгүй
+    // Web component: дотор талыг component өөрөө зурдаг → зөвхөн attribute-ийг шинэчилнэ,
+    // өөрчлөгдвөл attributeChangedCallback дахин зурна.
+    if (a.localName.includes('-')) return a;
     morphChildren(a, b);
     return a;
   }
@@ -192,39 +199,136 @@
     }
     keyed.forEach((n) => n.parentNode === a && n.remove());
   }
-  /** morph(el, html) — el-ийн агуулгыг шинэ HTML болгоно, өөрчлөгдсөн хэсгийг л солино */
+  /** morph(el, html) — el (element эсвэл ShadowRoot)-ийн агуулгыг шинэ HTML болгоно */
   function morph(el, h) {
     const frag = parse(h);
-    const wrap = document.createElement(el.tagName);
+    const wrap = document.createElement(el.tagName || 'div');
     wrap.appendChild(frag);
     morphChildren(el, wrap);
-    attachKeeps(el);
   }
   Nar.morph = morph;
 
-  /* ---------- keep-alive hosts ---------- */
-  const hosts = {};
-  /** Nar.host('map3d') — байнгын элемент (3D canvas гэх мэт) */
-  function host(k) {
-    if (!hosts[k]) {
-      hosts[k] = document.createElement('div');
-      hosts[k].className = 'keep-host';
+  /* ---------- Web Components ---------- */
+  /**
+   * Nar.define('sokh-flower', {
+   *   attrs:  ['wilt', 'paid'],          // ажиглах attribute (өөрчлөгдвөл дахин зурна)
+   *   shadow: true,                      // Shadow DOM (style тусгаарлагдана) · false = Light DOM
+   *   styles: ['css/components/flower.css'],  // Shadow DOM-д ачаалах CSS файл
+   *   css:    ':host{display:block}',    // Shadow DOM-ийн нэмэлт inline CSS
+   *   render(el) { return html`...` },   // el.str/num/bool/data-аар attribute уншина
+   *   connected(el), disconnected(el), updated(el), changed(el, name, old, new), methods: { ... }
+   * })
+   * Хуудсанд: html`<sokh-flower wilt="0.4" paid></sokh-flower>` — morph нь зөвхөн attribute-ийг
+   * солих тул component дотоод DOM, анимаци, focus-оо хадгална.
+   */
+  const sheets = {};
+  function define(tag, def) {
+    if (customElements.get(tag)) return customElements.get(tag);
+    const attrs = def.attrs || [];
+    class NarElement extends HTMLElement {
+      static get observedAttributes() {
+        return attrs;
+      }
+      connectedCallback() {
+        if (!this._nar) {
+          this._nar = true;
+          if (def.shadow) {
+            const sr = this.attachShadow({ mode: 'open' });
+            // CSS файлыг <link>-ээр ачаална (file:// дээр ч ажиллана); ачаалагдтал нууна
+            const links = (def.styles || []).map((href) => {
+              const l = document.createElement('link');
+              l.rel = 'stylesheet';
+              l.href = href;
+              return l;
+            });
+            const st = document.createElement('style');
+            st.textContent =
+              ':host{display:block}[hidden]{display:none!important}' + (def.css || '');
+            sr.append(st, ...links);
+            this._root = document.createElement('div');
+            this._root.className = 'root';
+            if (links.length && !links.every((l) => sheets[l.href])) {
+              this._root.style.visibility = 'hidden';
+              let n = links.length;
+              const done = (l) => {
+                sheets[l.href] = 1;
+                if (--n <= 0) this._root.style.visibility = '';
+              };
+              links.forEach((l) => {
+                l.onload = l.onerror = () => done(l);
+              });
+            }
+            sr.append(this._root);
+          } else this._root = this;
+          if (def.init) def.init(this);
+        }
+        this._paint();
+        if (def.connected) def.connected(this);
+      }
+      disconnectedCallback() {
+        if (def.disconnected) def.disconnected(this);
+      }
+      attributeChangedCallback(n, a, b) {
+        if (!this._nar || a === b) return;
+        if (def.changed) def.changed(this, n, a, b);
+        this.refresh();
+      }
+      /** дахин зурах (нэг microtask-д нэг удаа) */
+      refresh() {
+        if (this._q) return;
+        this._q = true;
+        queueMicrotask(() => {
+          this._q = false;
+          if (this.isConnected) this._paint();
+        });
+      }
+      _paint() {
+        if (!def.render) return;
+        morph(this._root, def.render(this));
+        if (def.updated) def.updated(this);
+      }
+      /** дотоод DOM (Light DOM бол element өөрөө, Shadow бол .root div) */
+      get root() {
+        return this._root;
+      }
+      str(n, d = '') {
+        const v = this.getAttribute(n);
+        return v == null ? d : v;
+      }
+      num(n, d = 0) {
+        const v = parseFloat(this.getAttribute(n));
+        return isNaN(v) ? d : v;
+      }
+      bool(n) {
+        const v = this.getAttribute(n);
+        return v != null && v !== 'false' && v !== '0';
+      }
+      data(n = 'data', d = null) {
+        const v = this.getAttribute(n);
+        if (v == null || v === '') return d;
+        try {
+          return JSON.parse(v);
+        } catch (e) {
+          return d;
+        }
+      }
     }
-    return hosts[k];
+    if (def.methods) Object.assign(NarElement.prototype, def.methods);
+    customElements.define(tag, NarElement);
+    return NarElement;
   }
-  /** Nar.keep('map3d','cls') → placeholder; morph-ийн дараа host-ыг автоматаар дотор нь хийнэ */
-  const keep = (k, cls = '') =>
-    raw('<div data-keep="' + esc(k) + '" class="' + esc(cls) + '"></div>');
-  function attachKeeps(root) {
-    root.querySelectorAll('[data-keep]').forEach((ph) => {
-      const h = host(ph.getAttribute('data-keep'));
-      Array.from(ph.children).forEach((c) => {
-        if (c !== h && c.classList.contains('keep-host')) c.remove();
-      });
-      if (h.parentNode !== ph) ph.appendChild(h);
-    });
-  } // өмнөх host-ыг салгана (жишээ нь зогсоолын бүс солиход)
-  Object.assign(Nar, { host, keep });
+  Nar.define = define;
+
+  /** event-ийн замаас (Shadow DOM-ийг нэвтэрч) attribute-тэй хамгийн ойрын element */
+  function closest(e, attr) {
+    const path = e.composedPath ? e.composedPath() : [];
+    for (const n of path) {
+      if (n === document) break;
+      if (n.nodeType === 1 && n.hasAttribute(attr)) return n;
+    }
+    return e.target.closest ? e.target.closest('[' + attr + ']') : null;
+  }
+  Nar.closest = closest;
 
   /* ---------- router ---------- */
   const router = {
@@ -276,7 +380,7 @@
     }
     const A = o.actions || {};
     document.addEventListener('click', (e) => {
-      const el = e.target.closest('[data-act]');
+      const el = closest(e, 'data-act');
       if (!el || el.disabled) return;
       const f = A[el.dataset.act];
       if (!f) return;
@@ -284,16 +388,16 @@
       f(el.dataset.arg, el, e);
     });
     document.addEventListener('input', (e) => {
-      const el = e.target.closest('[data-in]');
+      const el = closest(e, 'data-in');
       if (el && o.inputs && o.inputs[el.dataset.in]) o.inputs[el.dataset.in](el.value, el, e);
     });
     document.addEventListener('change', (e) => {
-      const el = e.target.closest('[data-change]');
+      const el = closest(e, 'data-change');
       if (el && o.inputs && o.inputs[el.dataset.change])
         o.inputs[el.dataset.change](el.value, el, e);
     });
     document.addEventListener('submit', (e) => {
-      const el = e.target.closest('[data-submit]');
+      const el = closest(e, 'data-submit');
       if (el && A[el.dataset.submit]) {
         e.preventDefault();
         A[el.dataset.submit](new FormData(el), el, e);
@@ -310,7 +414,9 @@
   }
   Nar.app = app;
 
-  /* ---------- modal / sheet ---------- */
+  /* ---------- <nar-modal> / sheet ---------- */
+  // <nar-modal> нь body-д нэг л байна; агуулгыг Nar.modal.open(fn)-ийн fn зурна.
+  define('nar-modal', {});
   let modalRoot = null;
   const modal = {
     fn: null,
@@ -331,26 +437,24 @@
     refresh(first) {
       if (!modal.fn) return;
       if (!modalRoot) {
-        modalRoot = document.createElement('div');
-        document.body.appendChild(modalRoot);
+        modalRoot = document.querySelector('nar-modal') || document.createElement('nar-modal');
+        if (!modalRoot.isConnected) document.body.appendChild(modalRoot);
       }
       const o = modal.opt;
-      const h =
-        '<div class="modal ' +
-        (o.side ? 'sheet-r' : '') +
-        '"><button class="modal-bg" data-act="__close" aria-label="Хаах"></button><div role="dialog" aria-modal="true" class="modal-box scroll ' +
-        (o.cls || '') +
-        '">' +
-        modal.fn() +
-        '</div></div>';
+      const h = html`<div class="${cx('modal', o.side && 'sheet-r')}">
+        <button class="modal-bg" data-act="__close" aria-label="Хаах"></button>
+        <div role="dialog" aria-modal="true" class="${cx('modal-box scroll', o.cls)}">
+          ${raw(modal.fn())}
+        </div>
+      </div>`;
       if (first || !modalRoot.firstChild) {
-        modalRoot.innerHTML = h;
+        modalRoot.innerHTML = String(h);
         document.body.classList.add('modal-open');
       } else morph(modalRoot, h);
     },
   };
   document.addEventListener('click', (e) => {
-    if (e.target.closest('[data-act="__close"]')) {
+    if (closest(e, 'data-act') && closest(e, 'data-act').dataset.act === '__close') {
       e.preventDefault();
       modal.close();
     }
@@ -360,27 +464,37 @@
   });
   Nar.modal = modal;
 
-  /* ---------- toast ---------- */
-  let toastRoot = null,
-    toastT = 0;
+  /* ---------- <nar-toast> ---------- */
+  /** <nar-toast kind="ok|bad|acc|warn" heading="..." sub="..."> — 3.4 сек харагдаад алга болно */
+  const TOAST_IC = { ok: 'ok', bad: 'droplet', acc: 'info', warn: 'alert' };
+  define('nar-toast', {
+    attrs: ['kind', 'heading', 'sub', 'stamp'],
+    render(el) {
+      if (!el.str('heading')) return '';
+      const k = el.str('kind', 'ok');
+      return html`<div role="status" class="toast card">
+        <span class="${'toast-ic t-' + k}">${raw(Nar.icon(TOAST_IC[k] || 'ok', 18))}</span>
+        <div class="grow">
+          <b class="t13 block">${el.str('heading')}</b
+          ><span class="muted t12">${el.str('sub')}</span>
+        </div>
+      </div>`;
+    },
+    updated(el) {
+      clearTimeout(el._t);
+      if (el.str('heading')) el._t = setTimeout(() => el.removeAttribute('heading'), 3400);
+    },
+  });
   Nar.toast = function (t, s = '', k = 'ok') {
-    if (!toastRoot) {
-      toastRoot = document.createElement('div');
-      toastRoot.className = 'toast-root';
-      document.body.appendChild(toastRoot);
+    let el = document.querySelector('nar-toast');
+    if (!el) {
+      el = document.createElement('nar-toast');
+      el.className = 'toast-root';
+      document.body.appendChild(el);
     }
-    const icn = { ok: 'ok', bad: 'droplet', acc: 'info', warn: 'alert' }[k] || 'ok';
-    toastRoot.innerHTML =
-      '<div role="status" class="toast card"><span class="toast-ic t-' +
-      k +
-      '">' +
-      Nar.icon(icn, 18) +
-      '</span><div class="grow"><b class="t13 block">' +
-      esc(t) +
-      '</b><span class="muted t12">' +
-      esc(s) +
-      '</span></div></div>';
-    clearTimeout(toastT);
-    toastT = setTimeout(() => (toastRoot.innerHTML = ''), 3400);
+    el.setAttribute('kind', k);
+    el.setAttribute('sub', s);
+    el.setAttribute('heading', t);
+    el.setAttribute('stamp', Date.now()); // ижил мэдэгдэл дахин ирвэл хугацааг шинэчилнэ
   };
 })();

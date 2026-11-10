@@ -1,8 +1,8 @@
 /* СӨХ Platform — Нэвтрэх (login.html): 1) хотхон сонгох 2) эрх сонгоод нэвтрэх
  * + оршин суугч бүртгүүлэх хүсэлт (СӨХ батална), шинэ СӨХ бүртгүүлэх. Ажилтныг админ үүсгэнэ. */
 (function () {
-  const { html, cx, icon, raw } = Nar;
-  const ic = (n, s) => raw(icon(n, s));
+  const { html, cx, raw } = Nar;
+  const ic = Nar.ic;
   // хотхоны жагсаалт: js/layout.js-ийн бүртгэл (админ шинээр бүртгэсэн хотхонууд ч энд гарна)
   const COMPLEXES = Layout.all().map((L) => ({
     id: L.id,
@@ -82,7 +82,7 @@
     const c = C();
     const R = ROLES[s.role];
     return html`<section class="lg-hero">
-      ${W.skyline()}
+      <sokh-skyline></sokh-skyline>
       <div class="lg-hero-fade lg-down"></div>
       <div class="lg-hero-in">
         <div class="flex ic g3">
@@ -130,7 +130,7 @@
     >`;
   const backBtn = (to, label) =>
     html`<button type="button" class="lg-home" data-act="go" data-arg="${to}">
-      ${raw(icon('arrow-right', 14, 'flip'))}${label}
+      ${ic('arrow-right', 14, 'flip')}${label}
     </button>`;
   const errBox = () => (s.err ? html`<p class="badc t13 b">${s.err}</p>` : '');
   const bldOf = (L, n) => L.buildings.find((b) => String(b.n) === String(n)) || L.buildings[0];
@@ -248,7 +248,7 @@
     const q = s.q.toLowerCase();
     const list = COMPLEXES.filter((x) => !q || (x.n + x.sokh + x.d).toLowerCase().includes(q));
     const head = html`<a class="lg-home" href="index.html"
-        >${raw(icon('arrow-right', 14, 'flip'))}Нүүр хуудас</a
+        >${ic('arrow-right', 14, 'flip')}Нүүр хуудас</a
       >
       <div class="lg-steps">
         <span class="${cx('ls-n', s.step === 'cx' ? 'on' : 'ok')}"
@@ -374,8 +374,7 @@
     const st = JSON.parse(localStorage.getItem('sokh-v1') || 'null');
     if (st && st.theme) document.documentElement.classList.toggle('dark', st.theme === 'dark');
   } catch (e) {}
-  document.body.innerHTML =
-    '<div class="login"><div id="hero"></div><section class="lg-form"><div id="card" class="card lg-card"></div></section></div>';
+  // бүтэц (#hero, #card) нь login.html-д бичигдсэн
   app = Nar.app({
     regions: [
       { el: '#hero', render: hero, topics: ['ui'] },

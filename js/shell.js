@@ -1,16 +1,18 @@
 /*
- * СӨХ Platform — app shell (Nar.js дээр):
+ * СӨХ Platform — app shell (Nar.js дээр), <sokh-shell> web component:
  *  ≥1024px: зүүн талын цэс (light/dark-д дагана, доор нь горим + гарах товч)
  *  <1024px: дээд мөр + гулсдаг цэс (удирдлага) эсвэл доод tab цэс (ажилтан, оршин суугч)
  *
- * Shell.boot({ role, brand, sub, mobile:'drawer'|'bottom', profile(), nav(), routes, actions, inputs, extra(), banner() })
+ * HTML:  <sokh-shell mobile="drawer|bottom" banner></sokh-shell>
+ * JS:    Shell.boot({ role, brand, sub, profile(), nav(), routes, actions, inputs, extra(), banner() })
  *   routes: { '': { title, topics:['reqs'], view: () => html``, after(el) } , ... }
  *   nav item: { h, label, icon, badge, kids, bn:false (доод цэсэнд харуулахгүй) }
  *   banner: бүх хуудасны дээд талд байнга харагдах хэсэг (bannerTopics-оор шинэчлэгдэнэ)
+ *   mobile: HTML-ийн attribute-аас (эсвэл cfg.mobile)
  */
 (function () {
-  const { html, raw, cx, icon } = Nar;
-  const ic = (n, s) => raw(icon(n, s));
+  const { html, cx } = Nar;
+  const ic = Nar.ic;
   let cfg,
     drawer = false;
 
@@ -20,17 +22,34 @@
   };
   const isOn = (h, r) => r === h || (h !== '' && r.split('/')[0] === h);
 
-  function themeBtn(extra = '') {
-    const dark = S.state.theme === 'dark';
-    return html`<button
-      data-act="theme"
-      class="${cx('theme-btn', extra)}"
-      title="${dark ? 'Харанхуй горим · гэрэлтэй болгох' : 'Гэрэлтэй горим · харанхуй болгох'}"
-      aria-label="Горим солих"
-    >
-      ${ic(dark ? 'moon' : 'sun', 18)}
-    </button>`;
-  }
+  /** <sokh-shell> — хуудасны үндсэн бүтэц (цэс, header, main, доод цэс) */
+  Nar.define('sokh-shell', {
+    attrs: [],
+    init(el) {
+      const bottom = el.str('mobile') === 'bottom';
+      el.innerHTML = String(
+        html`<div class="app">
+            <aside id="side" class="lg-up"></aside>
+            <div id="drawer"></div>
+            <div class="app-main">
+              <header id="hdr" class="hdr"></header>
+              <main id="main" class="${cx('main scroll', bottom && 'has-bnav')}">
+                ${el.bool('banner') ? html`<div id="banner"></div>` : ''}
+                <div id="view" class="view"></div>
+              </main>
+            </div>
+            ${bottom ? html`<nav id="bnav" class="bnav lg-down" aria-label="Доод цэс"></nav>` : ''}
+          </div>
+          <div id="extra"></div>`,
+      );
+    },
+  });
+
+  const themeBtn = (variant = '') =>
+    html`<sokh-theme-btn
+      ${Nar.flag('dark', S.state.theme === 'dark')}
+      variant="${variant}"
+    ></sokh-theme-btn>`;
 
   function side() {
     const r = curRoute();
@@ -122,17 +141,15 @@
     const applyTheme = () =>
       document.documentElement.classList.toggle('dark', S.state.theme === 'dark');
     applyTheme();
-    document.body.innerHTML =
-      '<div class="app"><aside id="side" class="lg-up"></aside><div id="drawer"></div><div class="app-main"><header id="hdr" class="hdr"></header>' +
-      '<main id="main" class="main scroll' +
-      (cfg.mobile === 'bottom' ? ' has-bnav' : '') +
-      '">' +
-      (cfg.banner ? '<div id="banner"></div>' : '') +
-      '<div id="view" class="view"></div></main></div>' +
-      (cfg.mobile === 'bottom'
-        ? '<nav id="bnav" class="bnav lg-down" aria-label="Доод цэс"></nav>'
-        : '') +
-      '</div><div id="extra"></div>';
+    // HTML-д <sokh-shell> байхгүй бол үүсгэнэ (mobile / banner-ийг cfg-ээс авна)
+    let shell = document.querySelector('sokh-shell');
+    if (!shell) {
+      shell = document.createElement('sokh-shell');
+      if (cfg.mobile) shell.setAttribute('mobile', cfg.mobile);
+      if (cfg.banner) shell.setAttribute('banner', '');
+      document.body.prepend(shell);
+    }
+    cfg.mobile = shell.getAttribute('mobile') || cfg.mobile || 'drawer';
     const regions = [
       {
         el: '#side',
@@ -184,7 +201,7 @@
     ];
     if (cfg.mobile === 'bottom')
       regions.push({ el: '#bnav', render: bottomNav, topics: ['notifs', 'reqs', 'pay', 'nav'] });
-    if (cfg.banner)
+    if (cfg.banner && shell.querySelector('#banner'))
       regions.push({ el: '#banner', render: cfg.banner, topics: cfg.bannerTopics || ['all'] });
     const actions = Object.assign(
       {
@@ -239,8 +256,8 @@
     });
   }
 
+  const NOTIF_IC = { ok: 'ok', warn: 'alert', acc: 'info', bad: 'droplet' };
   function notifView(role) {
-    const IC = { ok: 'ok', warn: 'alert', acc: 'info', bad: 'droplet' };
     const list = S.state.notifs[role];
     return html`<section class="card pad col g1 max-3">
       <div class="flex jb ic mb2">
@@ -249,49 +266,36 @@
       </div>
       ${list.map(
         (n) =>
-          html`<div class="trow flex g3 is p2" data-key="n${n.id}">
-            <span class="${'chip icon c-' + n.k}">${ic(IC[n.k], 16)}</span>
-            <div class="grow">
-              <b class="t13 block">${n.t}</b><span class="muted t12">${n.s}</span>
-            </div>
-            <div class="col ie g1">
-              <span class="num faint t11">${n.time}</span>${n.unread
-                ? html`<span class="dot acc"></span>`
-                : ''}
-            </div>
-          </div>`,
+          html`<sokh-alert
+            data-key="${'n' + n.id}"
+            tone="${n.k}"
+            icon="${NOTIF_IC[n.k]}"
+            heading="${n.t}"
+            sub="${n.s}"
+            time="${n.time}"
+            ${Nar.flag('unread', n.unread)}
+          ></sokh-alert>`,
       )}
       ${list.length ? '' : html`<p class="empty">Мэдэгдэл алга</p>`}
     </section>`;
   }
 
-  /** жижиг туслахууд */
+  /** жижиг туслахууд → web component tag буцаана */
   const switchBtn = (on, act, arg = '', label = '') =>
-    html`<button
-      role="switch"
-      aria-checked="${on}"
-      aria-label="${label}"
-      data-act="${act}"
-      data-arg="${arg}"
-      class="${cx('switch', on && 'on')}"
-    ></button>`;
-  const seg = (items, cur, act) =>
-    html`<div class="seg">
-      ${items.map(
-        ([v, l]) =>
-          html`<button
-            class="${String(v) === String(cur) ? 'on' : ''}"
-            data-act="${act}"
-            data-arg="${v}"
-          >
-            ${l}
-          </button>`,
-      )}
-    </div>`;
-  const prio = (p) =>
-    html`<span class="${'chip ' + (p === 'HIGH' ? 'c-bad' : p === 'MED' ? 'c-warn' : 'c-mute')}"
-      >${p}</span
-    >`;
+    html`<sokh-switch
+      ${Nar.flag('on', on)}
+      act="${act}"
+      arg="${arg}"
+      label="${label}"
+    ></sokh-switch>`;
+  const seg = (items, cur, act, variant = '') =>
+    html`<sokh-seg
+      value="${cur}"
+      act="${act}"
+      variant="${variant}"
+      options="${Nar.json(items)}"
+    ></sokh-seg>`;
+  const prio = (p) => html`<sokh-prio p="${p}"></sokh-prio>`;
 
   window.Shell = { boot, notifView, themeBtn, switchBtn, seg, prio, ic, refresh: () => {} };
 })();

@@ -1,0 +1,203 @@
+/* <sokh-scene3d> — Shadow DOM style (3D canvas, шошго). Өнгө: nar.css-ийн --token-ууд (light/dark). */
+.keep-host {
+  position: absolute;
+  inset: 0;
+}
+.stage3d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.stage3d-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+.stage3d-canvas:active {
+  cursor: grabbing;
+}
+.lbl-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lbl {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.b3-label {
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.b3-name {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #34322d;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.6);
+}
+.b3-name.n {
+  color: #f3eedf;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.b3-name.sel {
+  color: #b8860b;
+}
+.b3-sub {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.b3-sub.ok {
+  background: #1f7a4d;
+  color: #dff7e8;
+}
+.b3-sub.warn {
+  background: #9a6a12;
+  color: #fff1c9;
+}
+.b3-sub.bad {
+  background: #b3363f;
+  color: #fff;
+}
+.b3-warn {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #e0525a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  animation: bob 1s ease-in-out infinite;
+}
+.p3-tag {
+  white-space: nowrap;
+  padding: 0 6px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  animation: bob 2.6s ease-in-out infinite;
+}
+.p3-tag.mine {
+  background: #2f8fe0;
+}
+.p3-tag.res {
+  background: #7c5cfc;
+}
+.p3-tag.free {
+  background: #2eae68;
+}
+.p3-tag.own {
+  background: #14b8a6;
+}
+.p3-id {
+  font-size: 9.5px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.9);
+}
+@keyframes bob {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+.g3-bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 220px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1f2937;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+  border-left: 4px solid #0a72b8;
+  backdrop-filter: blur(6px);
+  transform: translateY(-50%);
+  animation: bob 2.4s ease-in-out infinite;
+}
+.g3-bubble b {
+  font-size: 12.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.g3-bubble span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5b6472;
+}
+.g3-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  background: inherit;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 0 0 3px 0;
+}
+.g3-bubble.bad {
+  border-left-color: #e0525a;
+}
+.g3-bubble.bad span {
+  color: #c2333c;
+}
+.g3-bubble.ok {
+  border-left-color: #2eae68;
+}
+.g3-bubble.n {
+  background: rgba(22, 28, 52, 0.92);
+  color: #f3f4f6;
+}
+.g3-bubble.n span {
+  color: #b8c0d4;
+}
+.b3-name {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(4px);
+  text-shadow: none;
+  font-size: 12.5px;
+}
+.b3-name.n {
+  background: rgba(20, 26, 50, 0.78);
+  text-shadow: none;
+}
+.b3-name.sel {
+  background: #f4c536;
+  color: #3a2c05;
+}
+@media (prefers-reduced-motion: reduce) {
+  .g3-bubble {
+    animation: none;
+  }
+}
+/* host-ийг эзэмшигч (map-box, park-box) байрлуулна */
+:host {
+  position: absolute;
+  inset: 0;
+}

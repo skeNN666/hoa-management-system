@@ -1406,4 +1406,52 @@
   }
 
   window.Scenes = { complex, parking };
+
+  /* ======================================================================
+     <sokh-scene3d key="complex3d"> — 3D үзэгдлийн Web Component (Shadow DOM).
+     WebGL үзэгдэл үнэтэй тул key бүрт НЭГ л удаа үүсгэж, хуудас солигдоход хадгална:
+     element дахин үүсэхэд (route солих, morph) өмнөх canvas-аа shadow root-доо буцааж авна.
+       const sc = el.use((host) => Scenes.complex(host, { onSelectB }));  sc.update({...})
+       el.reset()  — үзэгдлийг устгаж (WebGL чөлөөлж) дараагийн use()-д шинээр үүсгэнэ
+     ====================================================================== */
+  const slots = {};
+  const slotOf = (key) => {
+    if (!slots[key]) {
+      const host = document.createElement('div');
+      host.className = 'keep-host';
+      slots[key] = { host, scene: null };
+    }
+    return slots[key];
+  };
+  const attach = (el) => {
+    const k = el.getAttribute('key');
+    if (!k || !el.root) return null;
+    const s = slotOf(k);
+    Array.from(el.root.children).forEach((c) => c !== s.host && c.remove()); // өмнөх key-ийн host
+    if (s.host.parentNode !== el.root) el.root.appendChild(s.host);
+    return s;
+  };
+  Nar.define('sokh-scene3d', {
+    attrs: ['key'],
+    shadow: true,
+    styles: ['css/components/scene3d.css'],
+    css: '.root{position:absolute;inset:0}',
+    connected: attach,
+    changed: attach,
+    methods: {
+      use(make) {
+        const s = attach(this);
+        if (!s) return null;
+        if (!s.scene) s.scene = make(s.host, this);
+        return s.scene;
+      },
+      reset() {
+        const s = attach(this);
+        if (!s) return;
+        if (s.scene && s.scene.dispose) s.scene.dispose();
+        s.scene = null;
+        s.host.innerHTML = '';
+      },
+    },
+  });
 })();

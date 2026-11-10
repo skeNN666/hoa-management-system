@@ -68,9 +68,12 @@ login.html  admin.html  staff.html  resident.html     ← нэвтрэх + 3 с�
 css/
   nar.css        ← өөрийн CSS framework: өнгө (light/dark), reset, utility, компонент
   app.css        ← shell, хуудас бүрийн загвар, анимаци
+  components/    ← Shadow DOM component-уудын CSS (leak-building, worker-scene, flower,
+                   avatar, fund-jar, scene3d) — зөвхөн тухайн component дотор үйлчилнэ
 js/nar/          ← өөрийн жижиг framework "Nar"
   nar.js         ← html`` template (автоматаар escape), store, олон таб sync, leader,
-                   DOM morph (diff), router, event delegation, keep-alive, modal, toast
+                   DOM morph (diff), Nar.define (Web Component), router, event delegation,
+                   <nar-modal>, <nar-toast>
   icons.js       ← өөрөө зурсан SVG icon-ууд
   three-kit.js   ← Three.js дээрх туслах: OrbitCam (чирэх/zoom/pinch), HTML шошго, resize, click
 js/
@@ -78,11 +81,15 @@ js/
   layout.js      ← хотхоны бүтцийн model: байр, зам, зогсоол, гэрэл, мод (хотхон бүр өөр map)
   data.js        ← жишээ өгөгдөл (backend холбоход API-аас авна)
   store.js       ← төлөв + бүх үйлдэл (төлбөр, хүсэлт, ус алдалт, зогсоол…) + "шууд" симуляц
-  widgets.js     ← ажилтны засварын анимаци, ус алдалтын байр, цэцэг, сангийн сав, хөтөч Сараа
-  report.js      ← ил тод тайлан: сан, зарлага, хийсэн ажил, байрны төлбөрийн хувь (admin + resident)
+  components.js  ← нийтлэг UI component (Light DOM): <nar-icon>, <sokh-switch>, <sokh-seg>,
+                   <sokh-prio>, <sokh-theme-btn>, <sokh-stat>, <sokh-alert>, <sokh-bar>
+  widgets.js     ← Shadow DOM component: <sokh-worker-scene>, <sokh-leak-building>, <sokh-flower>,
+                   <sokh-avatar>, <sokh-ring>, <sokh-fund-jar>, <sokh-skyline>
+  report.js      ← ил тод тайлан component: <sokh-fund-stats>, <sokh-cat-bars>, <sokh-ledger>,
+                   <sokh-work-timeline>, <sokh-bld-rates>, <sokh-bill-share> (admin + resident)
   scenes.js      ← 3D: хотхоны map, зогсоол
-  shell.js       ← цэс (sidebar / drawer / доод цэс), header, мэдэгдэл
-  landing.js             ← танилцуулга хуудас
+  shell.js       ← <sokh-shell mobile="drawer|bottom" banner>: цэс, header, доод цэс, мэдэгдэл
+  landing.js             ← танилцуулгын component: <sokh-system-card>, <sokh-feature>, <sokh-landing-stats>
   accounts.js            ← бүртгэлийн дүрэм (browser + server хоёуланд)
   login.js  admin.js  staff.js  resident.js   ← хуудас бүрийн view + action
 vendor/three.min.js
@@ -125,7 +132,7 @@ CSS, JS, HTML файлууд [Prettier](https://prettier.io)-оор формат
 `vendor/` фолдерыг форматлахгүй. Код өөрчилсний дараа дараах командыг ажиллуулна:
 
 ```
-npx prettier@3.3.3 --write "css/*.css" "js/**/*.js" "*.html"
+npx prettier@3.3.3 --write "css/**/*.css" "js/**/*.js" "*.html"
 ```
 
 ## Nar framework товч
@@ -136,12 +143,40 @@ html`<b>${name}</b>`                 // утга автоматаар escape →
 Nar.app({ store, regions: [{ el: '#view', render, topics: ['reqs'] }], actions, inputs })
 <button data-act="remind" data-arg="5-34">          // → actions.remind('5-34')
 <input data-in="q">                                   // → inputs.q(value)
-Nar.keep('map3d')  / Nar.host('map3d')                // 3D canvas дахин зурахад алдагдахгүй
+Nar.define('sokh-x', { attrs, shadow, styles, render(el) })  // Web Component (доор харна)
 Nar.modal.open(() => html`...`)   Nar.toast('Гарчиг', 'тайлбар', 'ok')
 ```
 
 Дахин зурах үед `morph` нь зөвхөн өөрчлөгдсөн DOM-ыг сольдог тул input-ийн focus, scroll,
 CSS анимаци, 3D canvas хадгалагдана.
+
+## Web Components
+
+UI нь Custom Element-ээр бүтсэн (гадны сан байхгүй, `Nar.define`). Хоёр төрөл:
+
+| Төрөл | Хаана | Яагаад |
+|---|---|---|
+| **Light DOM** | `js/components.js`, `report.js`, `shell.js`, `landing.js` | nar.css / app.css-ийн class-ыг шууд ашиглана; host нь `display: contents` тул flex/grid өөрчлөгдөхгүй |
+| **Shadow DOM** | `js/widgets.js`, `<sokh-scene3d>` (`scenes.js`) | SVG / 3D widget бүр өөрийн CSS-тэй (`css/components/*.css`), бусад хуудсанд нөлөөлөхгүй. Өнгө нь `--token`-оор light/dark-д дагана |
+
+```js
+Nar.define('sokh-flower', {
+  attrs: ['wilt', 'paid', 'size'],          // өөрчлөгдвөл дахин зурна
+  shadow: true, styles: ['css/components/flower.css'],
+  render: (el) => html`<svg>…${el.num('wilt')}…</svg>`,   // el.str / num / bool / data
+});
+// хуудсанд:
+html`<sokh-flower wilt="${s.wilt}" ${Nar.flag('paid', s.paid)} size="130"></sokh-flower>`
+html`<sokh-ledger data="${Nar.json(list)}"></sokh-ledger>`   // объект → JSON attribute
+```
+
+- `morph` нь component-ийн **дотор** хүрэхгүй, зөвхөн attribute-ийг нь шинэчилнэ →
+  `attributeChangedCallback` дахин зурна. Тиймээс component дотоод анимаци, focus-оо хадгална.
+- `data-act` / `data-in` нь `composedPath()`-ээр шалгагддаг тул Shadow DOM дотор ч ажиллана.
+- **3D:** `<sokh-scene3d key="complex3d">` — WebGL үзэгдэл key бүрт нэг л удаа үүснэ:
+  `el.use((host) => Scenes.complex(host, {...})).update({...})`, `el.reset()` устгана.
+- Хуудасны бүтэц HTML-д: `admin.html` → `<sokh-shell mobile="drawer" banner>`,
+  `index.html` нь шууд HTML (`<sokh-system-card>`, `<sokh-feature>`, `<nar-icon>`).
 
 ## Backend холбох
 
