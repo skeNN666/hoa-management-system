@@ -1280,9 +1280,20 @@
   display: flex;
   flex-direction: column;
 }
+/* <1024px: зөвхөн нэвтрэх хэсэг (hero / skyline анимаци нуугдана) */
+@media (max-width: 1023px) {
+  .login #hero {
+    display: none;
+  }
+}
 @media (min-width: 1024px) {
+  /* хуудас яг дэлгэцийн өндөртэй: skyline (машинтай зам) үргэлж бүтэн харагдана,
+     нэвтрэх карт урт бол зөвхөн баруун тал дотроо гүйлгэнэ */
   .login {
     flex-direction: row;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
   }
   #hero {
     width: 52%;
@@ -1322,7 +1333,7 @@ sokh-skyline {
 }
 @media (min-width: 1024px) {
   sokh-skyline {
-    height: 560px;
+    height: min(560px, 82vh); /* намхан дэлгэц дээр жижгэрнэ */
   }
 }
 .lg-hero-fade {
@@ -1381,7 +1392,10 @@ sokh-skyline {
 }
 @media (min-width: 1024px) {
   .lg-form {
-    align-items: center;
+    overflow-y: auto;
+  }
+  .lg-form > .lg-card {
+    margin: auto 0; /* багтвал голлоно, багтахгүй бол дээрээс эхэлж гүйлгэнэ */
   }
 }
 .lg-card {
@@ -1432,7 +1446,9 @@ sokh-skyline {
   background: var(--accent);
 }
 .cx-list {
-  max-height: 340px;
+  /* картын бусад хэсэг ~420px → жагсаалт үлдсэн зайд багтаж, хуудас гүйлгэх шаардлагагүй */
+  max-height: clamp(200px, calc(100vh - 420px), 340px);
+  max-height: clamp(200px, calc(100dvh - 420px), 340px);
 }
 .cx-item {
   display: flex;

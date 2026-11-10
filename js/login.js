@@ -78,7 +78,12 @@
   };
   const C = () => COMPLEXES.find((c) => c.id === s.cx);
 
+  // <1024px: hero (skyline анимаци) харагдахгүй, шууд нэвтрэх хэсэг гарна.
+  // Нуусан үед ~4k элементтэй skyline-ийг огт үүсгэхгүй (утсан дээр хурдан ачаална).
+  const wide = matchMedia('(min-width: 1024px)');
+  wide.addEventListener('change', () => app && app.refresh(['ui']));
   function hero() {
+    if (!wide.matches) return '';
     const c = C();
     const R = ROLES[s.role];
     return html`<section class="lg-hero">
