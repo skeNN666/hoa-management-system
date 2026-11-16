@@ -3,16 +3,20 @@
 (function () {
   const { html, cx, raw } = Nar;
   const ic = Nar.ic;
-  // хотхоны жагсаалт: js/layout.js-ийн бүртгэл (админ шинээр бүртгэсэн хотхонууд ч энд гарна)
-  const COMPLEXES = Layout.all().map((L) => ({
-    id: L.id,
-    n: L.n,
-    sokh: L.sokh,
-    d: L.d,
-    b: L.buildings.length,
-    u: Layout.units(L),
-    c: L.c,
-  }));
+  // хотхоны жагсаалт: js/layout.js-ийн бүртгэл (админ шинээр бүртгэсэн хотхонууд ч энд гарна).
+  // Server-тэй үед зөвхөн DB-д байгаа хотхонууд (кодонд байгаа демо хотхонууд нэвтрэх боломжгүй тул)
+  const ON_SERVER = Api.serverComplexIds();
+  const COMPLEXES = Layout.all()
+    .filter((L) => !ON_SERVER || ON_SERVER.includes(L.id))
+    .map((L) => ({
+      id: L.id,
+      n: L.n,
+      sokh: L.sokh,
+      d: L.d,
+      b: L.buildings.length,
+      u: Layout.units(L),
+      c: L.c,
+    }));
   const ROLES = {
     admin: {
       l: 'Админ',
@@ -253,11 +257,11 @@
     const q = s.q.toLowerCase();
     const list = COMPLEXES.filter((x) => !q || (x.n + x.sokh + x.d).toLowerCase().includes(q));
     const head = html`<div class="lg-steps">
-        <span class="${cx('ls-n', s.step === 'cx' ? 'on' : 'ok')}"
-          >${s.step === 'cx' ? '1' : ic('check', 13)}</span
-        >Хотхон<span class="${cx('ls-line', s.step === 'login' && 'on')}"></span
-        ><span class="${cx('ls-n', s.step === 'login' && 'on')}">2</span>Нэвтрэх
-      </div>`;
+      <span class="${cx('ls-n', s.step === 'cx' ? 'on' : 'ok')}"
+        >${s.step === 'cx' ? '1' : ic('check', 13)}</span
+      >Хотхон<span class="${cx('ls-line', s.step === 'login' && 'on')}"></span
+      ><span class="${cx('ls-n', s.step === 'login' && 'on')}">2</span>Нэвтрэх
+    </div>`;
     if (s.step === 'cx')
       return html`${head}
         <div>
@@ -421,7 +425,8 @@
         };
         set({ err: '', info: '', busy: true });
         // server-гүй (файлаар нээсэн) демо горимд л шууд оруулна; server байвал DB-ийн бүртгэлээр шалгана
-        if (!Api.online() && s.id.trim() === R.demo[0] && s.pw === R.demo[1]) return enter(s.id.trim());
+        if (!Api.online() && s.id.trim() === R.demo[0] && s.pw === R.demo[1])
+          return enter(s.id.trim());
         // бүртгүүлсэн хэрэглэгч (js/accounts.js): хүлээгдэж буй хүсэлт бол мэдээлэл харуулна
         const r = await Api.accounts.signIn(s.role, s.cx, s.id, s.pw);
         if (r.ok) return enter(r.acc.login, r.acc.name);

@@ -143,8 +143,25 @@
     },
   };
 
+  // Server дээр бүртгэлтэй хотхонуудын id (нэвтрэх хуудсанд). offline → null (бүх демо хотхон)
+  let cxIds;
+  function serverComplexIds() {
+    if (!online) return null;
+    if (cxIds === undefined) {
+      cxIds = null;
+      try {
+        const x = new XMLHttpRequest();
+        x.open('GET', BASE + '/complexes', false);
+        x.send();
+        if (x.status === 200) cxIds = JSON.parse(x.responseText).map((c) => c.id);
+      } catch (e) {}
+    }
+    return cxIds;
+  }
+
   window.Api = {
     online: () => online,
+    serverComplexIds,
     session,
     can,
     accounts,
