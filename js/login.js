@@ -1,4 +1,4 @@
-/* СӨХ Platform — Нэвтрэх (login.html): 1) хотхон сонгох 2) эрх сонгоод нэвтрэх
+/* СӨХ Platform — Нэвтрэх (index.html): 1) хотхон сонгох 2) эрх сонгоод нэвтрэх
  * + оршин суугч бүртгүүлэх хүсэлт (СӨХ батална), шинэ СӨХ бүртгүүлэх. Ажилтныг админ үүсгэнэ. */
 (function () {
   const { html, cx, raw } = Nar;
@@ -380,7 +380,7 @@
     const st = JSON.parse(localStorage.getItem('sokh-v1') || 'null');
     if (st && st.theme) document.documentElement.classList.toggle('dark', st.theme === 'dark');
   } catch (e) {}
-  // бүтэц (#hero, #card) нь login.html-д бичигдсэн
+  // бүтэц (#hero, #card) нь index.html-д бичигдсэн
   app = Nar.app({
     regions: [
       { el: '#hero', render: hero, topics: ['ui'] },

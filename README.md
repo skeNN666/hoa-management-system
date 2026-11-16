@@ -32,7 +32,7 @@ Router, state store, DOM шинэчлэлт, icon, 3D камер удирдла�
 Server байвал бүртгэл PostgreSQL-д (scrypt нууц үг, session cookie), server-гүй демо горимд
 `js/accounts.js`-ийн дүрмээр browser-ийн localStorage-д хадгална.
 
-Шууд нээж болно: `login.html?role=admin|staff|resident`, `admin.html`, `staff.html`, `resident.html`.
+Шууд нээж болно: `index.html?role=admin|staff|resident`, `admin.html`, `staff.html`, `resident.html`.
 
 **Шууд холбоо (realtime) турших:** `resident.html`, `staff.html`, `admin.html`-ийг тус тусад нь табд нээгээд
 оршин суугчаас хүсэлт илгээ → ажилтан, удирдлагын таб дээр тэр дороо гарна (localStorage + `storage` event).
@@ -51,8 +51,6 @@ npm start                      # → http://localhost:8080  (DB: PGlite, server/
 суулгах шаардлагагүй. Анх асаахад демо хотхон, айл, нэхэмжлэл, хүсэлт автоматаар үүснэ (`SEED_DEMO=0`
 бол үүсгэхгүй). Демо нэвтрэлт: дээрх хүснэгт (ажилтан `EMP-001`…`EMP-012`, нууц үг `staff2026`).
 
-Хуучин `server/data/layouts.json`, `accounts.json`-ыг DB руу: `npm run import:json`.
-
 ### Тест
 
 ```
@@ -64,7 +62,6 @@ DATABASE_URL=postgres://… node tests/server.test.js   # жинхэнэ Postgre
 
 ```
 index.html             ← нэвтрэх хуудас (домэйн руу ороход шууд нээгдэнэ)
-login.html             ← index.html руу шилжүүлдэг (хуучин холбоосын төлөө)
 admin.html  staff.html  resident.html     ← 3 систем
 css/
   nar.css        ← өөрийн CSS framework: өнгө (light/dark), reset, utility, компонент
@@ -189,7 +186,7 @@ server/
   lib/                   ← auth, core (тохиргоо, map→айл/зогсоол/гэрэл, audit, файл), billing, pay (QPay),
                            requests, parking, notify (мэдэгдэл + SMS outbox), layout (js/layout.js-ийг уншина)
   routes/                ← auth, complexes, billing, requests, iot, parking, finance, notify
-  seed.js · import-json.js
+  seed.js                ← демо өгөгдөл (локал, тест)
 scripts/build.js         ← зөвхөн browser-ийн файлыг dist/ руу (server/ нийтэд харагдахгүй)
 wrangler.jsonc           ← Cloudflare: assets, Hyperdrive, cron (өдөр бүр 09:00 УБ)
 ```
