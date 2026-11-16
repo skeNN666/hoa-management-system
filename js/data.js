@@ -448,7 +448,11 @@
     return String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
   };
 
+  /** хүсэлтийн байршил: айлтай бол «5-р байр · 34 тоот», үгүй бол тайлбар (гадна гэрэл г.м.) */
+  const where = (q) => (q.b ? q.b + '-р байр · ' + q.u + ' тоот' : q.desc || 'Хотхоны нийтийн хэсэг');
+
   window.D = {
+    where,
     LAYOUT,
     CUR_MONTH,
     MONTHS,

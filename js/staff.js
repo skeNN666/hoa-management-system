@@ -62,7 +62,7 @@
               </div>
               <span class="num faint t12 b">#${next.id} · ${next.cat}</span
               ><b class="t24 tight">${next.title}</b
-              ><span class="muted t14">${next.b}-р байр · ${next.u} тоот</span>
+              ><span class="muted t14">${D.where(next)}</span>
               ${kind
                 ? html`<sokh-worker-scene class="max-xl" kind="${kind}"></sokh-worker-scene>`
                 : ''}${kind ? workNote(kind) : ''}
@@ -85,7 +85,7 @@
               >${prio(q.p)}
               <div class="grow">
                 <b class="block trunc t14">${q.title}</b
-                ><span class="muted t12 num">#${q.id} · ${q.b}-р байр</span>
+                ><span class="muted t12 num">#${q.id} · ${q.b ? q.b + '-р байр' : D.where(q)}</span>
               </div>
               <span class="chip c-acc">${REQ_STATUS[q.st]}</span></a
             >`,
@@ -158,7 +158,7 @@
               <div class="flex jb"><span class="num faint t12 b">#${q.id}</span>${prio(q.p)}</div>
               <b class="t14">${q.title}</b>
               <div class="flex jb ic t12 muted">
-                <span>${q.b}-р байр · ${q.u} тоот</span
+                <span>${D.where(q)}</span
                 ><span class="chip c-acc">${REQ_STATUS[q.st]}</span>
               </div>
             </button>`,
@@ -171,7 +171,7 @@
               <div>
                 <span class="num faint t12 b">#${t.id} · ${t.cat}</span>
                 <h2 class="t20 b">${t.title}</h2>
-                <p class="muted t13">${t.b}-р байр · ${t.u} тоот</p>
+                <p class="muted t13">${D.where(t)}</p>
               </div>
               <button class="btn s sq lg-down" data-act="open" data-arg="" aria-label="Хаах">
                 ${ic('x', 16)}
@@ -282,7 +282,7 @@
                 : ''}<span class="ml-auto num faint t12">${ago(now - q.createdAt)} өмнө</span>
             </div>
             <b class="t15">${q.title}</b
-            ><span class="muted t13">${q.b}-р байр · ${q.u} тоот · ${q.desc}</span>
+            ><span class="muted t13">${q.b ? D.where(q) + ' · ' + q.desc : D.where(q)}</span>
             <button class="btn p self-start" data-act="take" data-arg="${q.id}">Хүлээн авах</button>
           </section>`,
       )}
@@ -340,8 +340,9 @@
       },
       filter: (f) => set({ filter: f }),
       photo: (id) => {
-        S.addPhoto(id);
-        S.toast('Зураг нэмэгдлээ', 'Өмнө / дараах зураг', 'acc');
+        Promise.resolve(S.addPhoto(id)).then((ok) => {
+          if (ok !== false) S.toast('Зураг нэмэгдлээ', 'Өмнө / дараах зураг', 'acc');
+        });
       },
       status: (a) => {
         const [id, k] = a.split(':');

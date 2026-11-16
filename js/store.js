@@ -6,6 +6,7 @@
  * Backend холбохдоо action-уудыг fetch('/api/...')-аар, tick()-ийг WebSocket/SSE-ээр солино.
  */
 (function () {
+  if (window.S) return; // server-тэй үед js/remote.js store-ыг үүсгэсэн
   const KEY = 'sokh-v1',
     LEAD = 'sokh-leader';
   const ROOMS = ['Угаалгын өрөө', 'Гал тогоо', 'Бойлер'];
@@ -559,6 +560,7 @@
       S.toast('Тайлан нийтлэгдлээ', '1,248 айлд мэдэгдэл очлоо', 'ok');
     },
 
+    setSla() {},
     setInvoice(p) {
       Object.assign(st.invoice, p);
       emit(['invoice']);

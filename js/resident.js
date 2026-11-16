@@ -11,6 +11,43 @@
     Shell.refresh(['ui']);
   };
   const st = () => S.state;
+  const money = D.money;
+  /** Төлбөрийн мэдээлэл: server-ээс (st().bill), демо горимд жишээ өгөгдөл */
+  function bill() {
+    const s = st();
+    if (s.bill) return s.bill;
+    return {
+      due: s.paid ? 0 : ME.bill,
+      total: ME.bill,
+      label: '10-р сар',
+      code: 'INV-2026-1024',
+      dueDate: '10/10',
+      days: 5,
+      items: [
+        ['СӨХ-ийн хураамж', 50000],
+        ['Лифт', 10000],
+        ['Дундын цахилгаан', 5000],
+        ['Ус', 12000],
+        ['Өмнөх өр', 20000],
+      ],
+      history: (s.paid ? [['10/19', 'СӨХ · QPay', 97000]] : []).concat([
+        ['09/05', 'СӨХ · QPay', 82000],
+        ['08/04', 'СӨХ · Хаан банк', 80000],
+        ['07/03', 'СӨХ · SocialPay', 80000],
+      ]),
+    };
+  }
+  const amt = () => money(bill().total || bill().due);
+  const dueLine = () => {
+    const b = bill();
+    if (!b.dueDate) return '';
+    return (
+      'Төлөх хугацаа: ' +
+      b.dueDate +
+      ' · ' +
+      (b.days >= 0 ? b.days + ' хоног үлдсэн' : Math.abs(b.days) + ' хоног хэтэрсэн')
+    );
+  };
 
   /* ------------------------------ Нүүр ------------------------------ */
   function home() {
@@ -41,17 +78,17 @@
         <section class="card pad-l col g3">
           <div class="flex ie g3">
             <div class="grow col g2 self-center">
-              <span class="muted t13 b">Таны төлөх дүн · 10-р сар</span>
+              <span class="muted t13 b">Таны төлөх дүн · ${bill().label}</span>
               <span class="${'chip self-start ' + (s.paid ? 'c-ok' : 'c-bad')}"
                 ><span class="${cx('dot', s.paid ? 'ok' : 'bad pulse2')}"></span>${s.paid
                   ? 'Төлөгдсөн'
                   : 'Төлөгдөөгүй'}</span
               >
-              <b class="${cx('num t40 tight', s.paid && 'okc')}">₮97,000</b
+              <b class="${cx('num t40 tight', s.paid && 'okc')}">${amt()}</b
               ><span class="muted t13"
                 >${s.paid
                   ? 'Баярлалаа! eBarimt имэйлээр очсон.'
-                  : 'Төлөх хугацаа: 10/10 · 5 хоног үлдсэн'}</span
+                  : dueLine()}</span
               >
             </div>
             <sokh-flower wilt="${s.wilt}" ${Nar.flag('paid', s.paid)} size="130"></sokh-flower>
@@ -216,27 +253,18 @@
 
   function payPage() {
     const s = st();
-    const hist = (s.paid ? [['10/19', 'СӨХ · QPay', 97000]] : []).concat([
-      ['09/05', 'СӨХ · QPay', 82000],
-      ['08/04', 'СӨХ · Хаан банк', 80000],
-      ['07/03', 'СӨХ · SocialPay', 80000],
-    ]);
+    const b = bill();
+    const hist = b.history;
     return html`<div class="cols c1 lg-c2 max-5">
       <section class="card p5 col g3 ic center">
         <sokh-flower wilt="${s.wilt}" ${Nar.flag('paid', s.paid)} size="150"></sokh-flower
-        ><span class="muted t14">10-р сарын нэхэмжлэл · INV-2026-1024</span
-        ><b class="${cx('num t40', s.paid && 'okc')}">₮97,000</b>
+        ><span class="muted t14">${b.label}ын нэхэмжлэл${b.code ? ' · ' + b.code : ''}</span
+        ><b class="${cx('num t40', s.paid && 'okc')}">${amt()}</b>
         ${s.paid
           ? html`<span class="chip lg c-ok">${ic('ok', 15)}Төлөгдсөн · баярлалаа!</span>`
           : html`<button class="btn p lg w100 shine" data-act="pay">Одоо төлөх</button>`}
         <div class="w100 col g2 t13 bt pt3" style="text-align:left">
-          ${[
-            ['СӨХ-ийн хураамж', 50000],
-            ['Лифт', 10000],
-            ['Дундын цахилгаан', 5000],
-            ['Ус', 12000],
-            ['Өмнөх өр', 20000],
-          ].map(
+          ${b.items.map(
             ([l, v]) =>
               html`<div class="flex jb"><span>${l}</span><b class="num">${D.money(v)}</b></div>`,
           )}
@@ -244,7 +272,7 @@
       </section>
       <section class="card p5 col g3">
         <div class="flex jb ic">
-          <h2 class="h2">Таны ₮97,000 юунд зарцуулагдах вэ</h2>
+          <h2 class="h2">Таны ${amt()} юунд зарцуулагдах вэ</h2>
           <a href="#/report" class="link t12">Тайлан →</a>
         </div>
         <p class="muted t12">Энэ сарын нийтлэгдсэн зарлагын бүтцээр тооцов (ойролцоогоор).</p>
@@ -286,8 +314,10 @@
         >
         <p class="muted t13">
           ${s.paid
-            ? 'Таны ₮97,000 сан руу орсон. Хотхоноо хамтдаа авч явж байгаад баярлалаа!'
-            : 'Таны ₮97,000 лифтний засвар, өвлийн дулааны бэлтгэлд шууд зарцуулагдана. Зарлага бүр тайланд нийтлэгддэг.'}
+            ? 'Таны ' + amt() + ' сан руу орсон. Хотхоноо хамтдаа авч явж байгаад баярлалаа!'
+            : 'Таны ' +
+              amt() +
+              ' лифтний засвар, өвлийн дулааны бэлтгэлд шууд зарцуулагдана. Зарлага бүр тайланд нийтлэгддэг.'}
         </p>
         <div class="flex ic g2">
           <div class="bar grow">
@@ -331,7 +361,7 @@
                 >${ic('ok', 13)}Та энэ сарын төлбөрөө төлсөн</span
               >`
             : html`<button class="btn p self-start shine" data-act="pay">
-                ${ic('coins', 16)}₮97,000 төлж сан руу нэмэх
+                ${ic('coins', 16)}${amt()} төлж сан руу нэмэх
               </button>`}
         </div>
       </section>
@@ -450,16 +480,16 @@
     return html`<div class="cols c1 lg-c2 max-5">
       <section class="card p5 col g3">
         <div class="flex ic g3">
-          <span class="avatar t20" style="width:56px;height:56px">Б</span>
+          <span class="avatar t20" style="width:56px;height:56px">${ME.name.slice(0, 1)}</span>
           <div>
-            <b class="t18">Бат</b>
-            <p class="muted t14 num">${ME.b}-р байр · ${ME.n} тоот · 72.4 м²</p>
+            <b class="t18">${ME.name}</b>
+            <p class="muted t14 num">${ME.b}-р байр · ${ME.n} тоот</p>
           </div>
         </div>
         ${[
-          ['Утас', '9911 2233'],
-          ['Оршин суугч', '4 хүн'],
-          ['Автомашин', ME.plate + ' · Toyota Prius'],
+          ['Утас', ME.phone || '9911 2233'],
+          ['Оршин суугч', (ME.fam || 4) + ' хүн'],
+          ['Автомашин', ME.plate || '—'],
         ].map(
           ([k, v]) =>
             html`<div class="flex jb t13 bt pt2"><span class="muted">${k}</span><b>${v}</b></div>`,
@@ -471,9 +501,11 @@
           </div>
           ${Shell.themeBtn('alt')}
         </div>
-        <button class="txt-btn self-start" data-act="reset">
-          Демо өгөгдлийг анхны байдалд оруулах
-        </button>
+        ${S.remote
+          ? ''
+          : html`<button class="txt-btn self-start" data-act="reset">
+              Демо өгөгдлийг анхны байдалд оруулах
+            </button>`}
       </section>
       <section class="card p5 col g1">
         <h2 class="h2 mb2">Хүсэлтийн түүх</h2>
@@ -512,7 +544,7 @@
       return html`<div class="col ic g3 center">
         <span class="big-ic okbg bob" style="width:80px;height:80px">${ic('ok', 40)}</span
         ><b class="t20">Төлбөр амжилттай!</b>
-        <p class="muted t14">₮97,000 · eBarimt имэйлээр очлоо. Цэцэг тань дахин цэцэглэлээ.</p>
+        <p class="muted t14">${amt()} · төлбөр баталгаажлаа. Цэцэг тань дахин цэцэглэлээ.</p>
         <button class="btn p w100" data-act="__close">Болсон</button>
       </div>`;
     return html`<div class="flex jb ic">
@@ -520,7 +552,8 @@
         <button data-act="__close" aria-label="Хаах">${ic('x', 22)}</button>
       </div>
       <div class="card p4 flex jb ib">
-        <span class="muted t14">10-р сарын СӨХ төлбөр</span><b class="num t24">₮97,000</b>
+        <span class="muted t14">${bill().label}ын СӨХ төлбөр</span
+        ><b class="num t24">${money(bill().due || bill().total)}</b>
       </div>
       <div class="cols gs c2">
         ${CH.map(
@@ -609,8 +642,12 @@
     return {
       hello: {
         msg: paid
-          ? 'Сайн байна уу, Бат! Энэ сарын төлбөр тань төлөгдсөн байна. Өөр юугаар туслах вэ?'
-          : 'Сайн байна уу, Бат! Би Сараа — таны СӨХ хөтөч. Танд ₮97,000 төлбөр байна. Одоо төлөх үү, эсвэл ямар нэг асуудал байна уу?',
+          ? 'Сайн байна уу, ' + ME.name + '! Энэ сарын төлбөр тань төлөгдсөн байна. Өөр юугаар туслах вэ?'
+          : 'Сайн байна уу, ' +
+            ME.name +
+            '! Би Сараа — таны СӨХ хөтөч. Танд ' +
+            amt() +
+            ' төлбөр байна. Одоо төлөх үү, эсвэл ямар нэг асуудал байна уу?',
         opts: (paid ? [] : [['Төлбөр төлөх', 'g:pay', 1]]).concat([
           ['Асуудал мэдэгдэх', 'g:issue'],
           ['Зогсоол хайх', 'g:park'],
@@ -618,7 +655,7 @@
         ]),
       },
       pay: {
-        msg: 'Энэ бол таны төлбөрийн хэсэг. ₮97,000-ийг QPay, SocialPay эсвэл банкны аппаар нэг товшилтоор төлнө. Төлмөгц цэцэг тань дахин цэцэглэнэ.',
+        msg: 'Энэ бол таны төлбөрийн хэсэг. ' + amt() + '-ийг QPay, SocialPay эсвэл банкны аппаар нэг товшилтоор төлнө. Төлмөгц цэцэг тань дахин цэцэглэнэ.',
         opts: [
           ['Төлөх →', 'g:payNow', 1],
           ['Буцах', 'g:hello', 0, 1],
@@ -722,9 +759,9 @@
     sub: D.LAYOUT.n + ' · ' + D.ME.b + '-р байр ' + D.ME.n + ' тоот',
     profile: () =>
       html`<div class="side-profile">
-        <span class="avatar">Б</span>
+        <span class="avatar">${ME.name.slice(0, 1)}</span>
         <div>
-          <b class="t14">Бат</b
+          <b class="t14">${ME.name}</b
           ><span class="block t12 side-mu num">${ME.b}-р байр · ${ME.n} тоот</span>
         </div>
       </div>`,
@@ -747,7 +784,7 @@
     },
     routes: {
       '': {
-        title: 'Сайн байна уу, Бат',
+        title: 'Сайн байна уу, ' + ME.name,
         topics: ['pay', 'wilt', 'reqs', 'slots', 'park', 'leaks', 'notifs', 'fund', 'ledger'],
         view: home,
       },
@@ -785,12 +822,14 @@
         pay.stage = 'process';
         pay.p = 0;
         Nar.modal.refresh();
+        // server-ийн хариу ирэх хүртэл 90%-д хүлээнэ (демо горимд S.pay() шууд дуусна)
+        let done = null;
+        Promise.resolve(S.pay(CH[pay.ch][0])).then((ok) => (done = ok !== false));
         const t = setInterval(() => {
-          pay.p += 5;
-          if (pay.p >= 100) {
+          if (pay.p < 90 || done !== null) pay.p = Math.min(100, pay.p + 5);
+          if (pay.p >= 100 && done !== null) {
             clearInterval(t);
-            pay.stage = 'done';
-            S.pay();
+            pay.stage = done ? 'done' : 'choose';
           }
           Nar.modal.refresh();
         }, 70);
@@ -804,19 +843,29 @@
         Nar.modal.refresh();
       },
       reqPhoto: () => {
-        req.photo = true;
-        Nar.modal.refresh();
+        if (!S.remote) {
+          req.photo = true;
+          return Nar.modal.refresh();
+        }
+        S.pickRequestPhoto().then((ok) => {
+          req.photo = ok;
+          Nar.modal.refresh();
+        });
       },
       reqSend: () => {
         if (!req.title.trim()) return;
-        const id = S.newRequest({
-          title: req.title,
-          cat: req.cat,
-          p: req.p,
-          desc: req.desc || req.title,
+        Promise.resolve(
+          S.newRequest({
+            title: req.title,
+            cat: req.cat,
+            p: req.p,
+            desc: req.desc || req.title,
+          }),
+        ).then((id) => {
+          if (!id) return;
+          S.toast('Хүсэлт илгээгдлээ', id + ' · ангиллын бүх ажилтанд очлоо', 'acc');
+          Nar.modal.close(true);
         });
-        S.toast('Хүсэлт илгээгдлээ', id + ' · ангиллын бүх ажилтанд очлоо', 'acc');
-        Nar.modal.close(true);
       },
       guide: guideAct,
     },

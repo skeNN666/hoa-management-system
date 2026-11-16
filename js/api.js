@@ -154,10 +154,32 @@
     },
     logout() {
       localStorage.removeItem(SESSION);
+      // серверээс татсан өгөгдлийг browser-т үлдээхгүй (theme-ийг хадгална)
+      try {
+        const v = JSON.parse(localStorage.getItem('sokh-v1') || 'null');
+        if (v && String(v.__v).startsWith('remote:'))
+          localStorage.setItem('sokh-v1', JSON.stringify({ theme: v.theme }));
+      } catch (e) {}
+      // серверийн session cookie-г устгана (хуудас шилжсэн ч keepalive-аар дуусна)
+      if (online)
+        fetch(BASE + '/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+          keepalive: true,
+        }).catch(() => {});
     },
-    /** Энэ хуудсанд өөр эрхтэй хэрэглэгч орвол өөрийнх нь хуудас руу */
+    /** server холбогдсон + нэвтэрсэн → js/remote.js өгөгдлийг серверээс авна */
+    remote: () => online && !!session(),
+    /** call('POST', '/requests', body) → Promise<{ ok, msg, ...json }> */
+    call,
+    /** Энэ хуудсанд өөр эрхтэй хэрэглэгч орвол өөрийнх нь хуудас руу; server байхад нэвтрээгүй бол login руу */
     guard(role) {
       const s = session();
+      if (!s && online) {
+        location.replace('index.html');
+        return false;
+      }
       if (s && s.role !== role && PAGES[s.role]) {
         location.replace(PAGES[s.role]);
         return false;

@@ -42,7 +42,7 @@
       long: 'Төлбөр, хүсэлт, зогсоол',
     },
   };
-  // index.html-ээс ирсэн систем: login.html?role=admin|staff|resident
+  // Холбоосоор ирсэн систем: ?role=admin|staff|resident (байхгүй бол admin)
   const qRole = new URLSearchParams(location.search).get('role');
   const DISTRICTS = [
     'Баянгол',
@@ -252,10 +252,7 @@
     const c = C();
     const q = s.q.toLowerCase();
     const list = COMPLEXES.filter((x) => !q || (x.n + x.sokh + x.d).toLowerCase().includes(q));
-    const head = html`<a class="lg-home" href="index.html"
-        >${ic('arrow-right', 14, 'flip')}Нүүр хуудас</a
-      >
-      <div class="lg-steps">
+    const head = html`<div class="lg-steps">
         <span class="${cx('ls-n', s.step === 'cx' ? 'on' : 'ok')}"
           >${s.step === 'cx' ? '1' : ic('check', 13)}</span
         >Хотхон<span class="${cx('ls-line', s.step === 'login' && 'on')}"></span
@@ -423,7 +420,8 @@
           setTimeout(() => (location.href = R.go), 650);
         };
         set({ err: '', info: '', busy: true });
-        if (s.id.trim() === R.demo[0] && s.pw === R.demo[1]) return enter(s.id.trim());
+        // server-гүй (файлаар нээсэн) демо горимд л шууд оруулна; server байвал DB-ийн бүртгэлээр шалгана
+        if (!Api.online() && s.id.trim() === R.demo[0] && s.pw === R.demo[1]) return enter(s.id.trim());
         // бүртгүүлсэн хэрэглэгч (js/accounts.js): хүлээгдэж буй хүсэлт бол мэдээлэл харуулна
         const r = await Api.accounts.signIn(s.role, s.cx, s.id, s.pw);
         if (r.ok) return enter(r.acc.login, r.acc.name);
@@ -451,10 +449,7 @@
         if (!(fl >= 2 && fl <= 30)) return set({ err: 'Давхар 2–30 байна' });
         const id = 'cx-' + Date.now().toString(36);
         set({ busy: true, err: '' });
-        const r = await Api.accounts.register({ ...f, role: 'admin', cx: id });
-        if (!r.ok) return set({ busy: false, err: r.msg });
-        // админаар нэвтрээд (server map хадгалахдаа эрх шалгана) хотхоны анхны map-ыг үүсгэнэ
-        Api.login('admin', id, r.acc.login, r.acc.name);
+        // хотхоны анхны map — server бүртгэл, хотхон, map-ыг нэг гүйлгээнд хадгална
         const L = Object.assign(
           Layout.generate({
             buildings: nb,
@@ -470,7 +465,10 @@
             c: COLORS[COMPLEXES.length % COLORS.length],
           },
         );
-        const saved = await Layout.save(L);
+        const r = await Api.accounts.register({ ...f, role: 'admin', cx: id, layout: L });
+        if (!r.ok) return set({ busy: false, err: r.msg });
+        Api.login('admin', id, r.acc.login, r.acc.name);
+        const saved = await Layout.save(L); // browser-ийн хуулбар (server дээр аль хэдийн хадгалагдсан)
         if (!saved.ok) {
           Api.logout();
           return set({ busy: false, err: saved.msg });

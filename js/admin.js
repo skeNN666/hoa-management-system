@@ -4,7 +4,7 @@
   const { html, cx } = Nar;
   const { ic, seg, switchBtn, prio } = Shell;
   const { money, nf, ago, REQ_STATUS, BUILDINGS } = D;
-  const SLA_DEF = 60;
+  const SLA_DEF = (S.state && S.state.sla) || 60;
   const NB = BUILDINGS.length;
   const BN = BUILDINGS.map((b) => b.n);
   const ui = {
@@ -194,7 +194,7 @@
                   ${prio(q.p)}
                   <div class="grow">
                     <b class="block trunc">${q.title}</b
-                    ><span class="muted t12">${q.b}-р байр · ${q.u} тоот · ${q.cat}</span>
+                    ><span class="muted t12">${D.where(q)} · ${q.cat}</span>
                   </div>
                   <span
                     class="${'chip sm-up ' +
@@ -642,7 +642,7 @@
             ><b class="block t18 num"
               >${next.getFullYear()}/${p2(next.getMonth() + 1)}/${p2(c.day)} · ${c.time}</b
             ><span class="muted t12 num"
-              >1,248 айл · ${money(sum)} · төлөх хугацаа ${c.due} хоног</span
+              >${nf(S.units.flat().length)} айл · ${money(sum)} · төлөх хугацаа ${c.due} хоног</span
             >
           </div>
           <div class="right">
@@ -668,11 +668,18 @@
             html`<div class="flex ic g3 t13 semi">${switchBtn(c[k], 'invToggle', k, l)}${l}</div>`,
         )}
         <div class="bt pt3 col g2">
-          <span class="th">Өмнөх автомат илгээлтүүд</span> ${[
-            ['10/01 · 09:00', '1,248 нэхэмжлэл · ₮96.8M', '86% төлсөн'],
-            ['09/01 · 09:00', '1,248 нэхэмжлэл · ₮96.2M', '97% төлсөн'],
-            ['08/01 · 09:00', '1,246 нэхэмжлэл · ₮95.8M', '99% төлсөн'],
-          ].map(
+          <span class="th">Өмнөх автомат илгээлтүүд</span> ${(st().invHist
+            ? st().invHist.map((h) => [
+                h.at,
+                nf(h.n) + ' нэхэмжлэл · ₮' + (h.sum / 1e6).toFixed(1) + 'M',
+                Math.round(h.rate * 100) + '% төлсөн',
+              ])
+            : [
+                ['10/01 · 09:00', '1,248 нэхэмжлэл · ₮96.8M', '86% төлсөн'],
+                ['09/01 · 09:00', '1,248 нэхэмжлэл · ₮96.2M', '97% төлсөн'],
+                ['08/01 · 09:00', '1,246 нэхэмжлэл · ₮95.8M', '99% төлсөн'],
+              ]
+          ).map(
             (h) =>
               html`<div class="flex wrap ic g3 t13">
                 <span class="chip icon s round c-ok" style="width:24px;height:24px"
@@ -1297,7 +1304,7 @@
                     <span class="num faint t11 b">${x.id}</span>${prio(x.p)}
                   </div>
                   <b class="t13">${x.title}</b
-                  ><span class="muted t12">${x.b}-р байр · ${x.u} тоот · ${x.cat}</span>
+                  ><span class="muted t12">${D.where(x)} · ${x.cat}</span>
                   <div class="flex jb t11">
                     <span class="muted">${x.by || 'Хуваарилаагүй'}</span
                     ><span class="${cx('num b', late(x) ? 'badc' : 'faint')}"
@@ -1321,7 +1328,7 @@
       </div>
       <h2 class="t20 b">${q.title}</h2>
       <p class="muted t13">
-        ${q.b}-р байр · ${q.u} тоот ·
+        ${D.where(q)} ·
         ${q.from === 'resident' ? 'Оршин суугчаас' : q.from === 'sensor' ? 'Мэдрэгчээс' : 'Админ'}
       </p>
       <div class="card flat p3 t13">${q.desc}</div>
@@ -1348,7 +1355,7 @@
                 data-act="assign"
                 data-arg="${q.id + ':' + s.n}"
               >
-                <span class="avatar soft">${s.n.split(' ')[1].slice(0, 2)}</span
+                <span class="avatar soft">${(s.n.split(' ')[1] || s.n).slice(0, 2)}</span
                 ><span class="grow"
                   ><b>${s.n}</b
                   ><span class="block muted t12"
@@ -1368,7 +1375,7 @@
         return html`<section class="card p4 col g3">
           <div class="flex ic g3">
             <span class="avatar"
-              >${p.n.split(' ')[1].slice(0, 2)}<i class="${cx('on', !p.on && 'off')}"></i
+              >${(p.n.split(' ')[1] || p.n).slice(0, 2)}<i class="${cx('on', !p.on && 'off')}"></i
             ></span>
             <div class="grow">
               <b class="block trunc">${p.n}</b><span class="muted t12">${p.role} · ${p.id}</span>
@@ -2662,7 +2669,10 @@ ${y.text}</textarea
         ui.asg.u = '';
       },
       slotUnassign: (id) => S.unassignSlot(id),
-      sla: (m) => set({ sla: Number(m) }),
+      sla: (m) => {
+        set({ sla: Number(m) });
+        if (S.setSla) S.setSla(Number(m));
+      },
       openReq: (id) => {
         openReqId = id;
         Nar.modal.open(reqDrawer, { side: true });

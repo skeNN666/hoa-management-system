@@ -6,11 +6,12 @@ Router, state store, DOM шинэчлэлт, icon, 3D камер удирдла�
 
 ## Ажиллуулах
 
-`npm install` хэрэггүй, build хэрэггүй.
+**Backend-тэй (зөвлөмж):** `npm install && npm start` → http://localhost:8080 (доорх «Backend» хэсэг).
 
-1. Zip-ээ задлаад **`index.html`**-ийг browser-оор нээнэ (давхар товшино).
-2. Танилцуулга хуудаснаас системээ (СӨХ / ажилтан / оршин суугч) сонгоно → `login.html` нээгдэнэ.
-3. Хотхон сонгоод → эрхээ шалгаад → **Бөглөх** → нэвтэрнэ.
+**Server-гүй демо:** **`index.html`**-ийг browser-оор шууд нээнэ — бүх өгөгдөл browser-ийн localStorage-д.
+
+1. Нэвтрэх хуудас (`index.html`) нээгдэнэ.
+2. Хотхон сонгоод → эрхээ (СӨХ / ажилтан / оршин суугч) сонгоод → **Бөглөх** → нэвтэрнэ.
 
 | Эрх | Нэвтрэх нэр | Нууц үг |
 |---|---|---|
@@ -28,8 +29,8 @@ Router, state store, DOM шинэчлэлт, icon, 3D камер удирдла�
 
 Админ **Бүртгэл** хэсэгт хүсэлтийг **Батлах / Татгалзах**, оршин суугч, ажилтныг идэвхгүй болгоно (цэсэнд
 хүлээгдэж буй хүсэлтийн тоо гарна). Батлагдаагүй хүсэлтээр нэвтрэх гэвэл «СӨХ хянаж байна» гэж гарна.
-Дүрэм нь `js/accounts.js`-д — server байвал `server/data/accounts.json`-д, үгүй бол browser-ийн
-localStorage-д хадгална. Demo нууц үгийн hash, `X-Sokh-*` толгойн эрх шалгалт нь demo түвшний.
+Server байвал бүртгэл PostgreSQL-д (scrypt нууц үг, session cookie), server-гүй демо горимд
+`js/accounts.js`-ийн дүрмээр browser-ийн localStorage-д хадгална.
 
 Шууд нээж болно: `login.html?role=admin|staff|resident`, `admin.html`, `staff.html`, `resident.html`.
 
@@ -39,32 +40,32 @@ localStorage-д хадгална. Demo нууц үгийн hash, `X-Sokh-*` то
 > Хэрэв таны browser `file://`-ээс нээхэд хязгаарлалт тавибал фолдер дотроо `npx serve .` эсвэл
 > `python -m http.server` ажиллуулаад `http://localhost:...`-аар нээнэ.
 
-### Backend-тэй ажиллуулах (заавал биш)
+### Backend-тэй ажиллуулах
 
 ```
-node server/server.js          # эсвэл: npm start  →  http://localhost:8080
+npm install
+npm start                      # → http://localhost:8080  (DB: PGlite, server/data/pg)
 ```
 
-Нэмэлт сан хэрэггүй (Node 18+). Хотхоны map-ууд `server/data/layouts.json`-д хадгалагдаж, бүх компьютер,
-browser дээр ижил харагдана. Server байхгүй үед өмнөх шигээ зөвхөн browser-ийн localStorage-д ажиллана
-(`js/api.js` автоматаар таньдаг).
+`DATABASE_URL` байхгүй бол **PGlite** (Node дотор ажилладаг жинхэнэ Postgres) ашиглана — тусдаа DB
+суулгах шаардлагагүй. Анх асаахад демо хотхон, айл, нэхэмжлэл, хүсэлт автоматаар үүснэ (`SEED_DEMO=0`
+бол үүсгэхгүй). Демо нэвтрэлт: дээрх хүснэгт (ажилтан `EMP-001`…`EMP-012`, нууц үг `staff2026`).
 
-**Эрх:** нэвтэрсэн эрхээ (админ / ажилтан / оршин суугч) session-д хадгална. Өөр эрхтэй хэрэглэгч
-`admin.html`-ийг нээвэл өөрийн хуудас руу шилжинэ. Map-ыг зөвхөн **тухайн хотхоны админ** засна: сервер
-`X-Sokh-Role`, `X-Sokh-Cx` толгойг шалгаж, өөр хотхоны map руу бичихийг 403-аар хориглоно. Энэ нь demo
-түвшний шалгалт — бодит системд нууц үгээр нэвтрүүлж серверт session / JWT ашиглана.
+Хуучин `server/data/layouts.json`, `accounts.json`-ыг DB руу: `npm run import:json`.
 
 ### Тест
 
 ```
-npm test        # layout, accounts (бүртгэл), server тестүүд
+npm test        # layout, accounts (бүртгэл), backend API (42 тест, PGlite санах ойд)
+DATABASE_URL=postgres://… node tests/server.test.js   # жинхэнэ Postgres дээр
 ```
 
 ## Бүтэц
 
 ```
-index.html             ← танилцуулга (систем сонгох)
-login.html  admin.html  staff.html  resident.html     ← нэвтрэх + 3 систем
+index.html             ← нэвтрэх хуудас (домэйн руу ороход шууд нээгдэнэ)
+login.html             ← index.html руу шилжүүлдэг (хуучин холбоосын төлөө)
+admin.html  staff.html  resident.html     ← 3 систем
 css/
   nar.css        ← өөрийн CSS framework: өнгө (light/dark), reset, utility, компонент
   app.css        ← shell, хуудас бүрийн загвар, анимаци
@@ -89,11 +90,10 @@ js/
                    <sokh-work-timeline>, <sokh-bld-rates>, <sokh-bill-share> (admin + resident)
   scenes.js      ← 3D: хотхоны map, зогсоол
   shell.js       ← <sokh-shell mobile="drawer|bottom" banner>: цэс, header, доод цэс, мэдэгдэл
-  landing.js             ← танилцуулгын component: <sokh-system-card>, <sokh-feature>, <sokh-landing-stats>
-  accounts.js            ← бүртгэлийн дүрэм (browser + server хоёуланд)
+  accounts.js            ← бүртгэлийн дүрэм (server-гүй демо горим)
   login.js  admin.js  staff.js  resident.js   ← хуудас бүрийн view + action
 vendor/three.min.js
-server/server.js     ← жижиг backend (статик файл + /api/layouts), нэмэлт сан хэрэггүй
+server/ api/          ← backend (Node + PostgreSQL) — доорх «Backend» хэсэг
 tests/               ← layout model, backend-ийн тест (node)
 ```
 
@@ -156,7 +156,7 @@ UI нь Custom Element-ээр бүтсэн (гадны сан байхгүй, `N
 
 | Төрөл | Хаана | Яагаад |
 |---|---|---|
-| **Light DOM** | `js/components.js`, `report.js`, `shell.js`, `landing.js` | nar.css / app.css-ийн class-ыг шууд ашиглана; host нь `display: contents` тул flex/grid өөрчлөгдөхгүй |
+| **Light DOM** | `js/components.js`, `report.js`, `shell.js` | nar.css / app.css-ийн class-ыг шууд ашиглана; host нь `display: contents` тул flex/grid өөрчлөгдөхгүй |
 | **Shadow DOM** | `js/widgets.js`, `<sokh-scene3d>` (`scenes.js`) | SVG / 3D widget бүр өөрийн CSS-тэй (`css/components/*.css`), бусад хуудсанд нөлөөлөхгүй. Өнгө нь `--token`-оор light/dark-д дагана |
 
 ```js
@@ -175,13 +175,60 @@ html`<sokh-ledger data="${Nar.json(list)}"></sokh-ledger>`   // объект →
 - `data-act` / `data-in` нь `composedPath()`-ээр шалгагддаг тул Shadow DOM дотор ч ажиллана.
 - **3D:** `<sokh-scene3d key="complex3d">` — WebGL үзэгдэл key бүрт нэг л удаа үүснэ:
   `el.use((host) => Scenes.complex(host, {...})).update({...})`, `el.reset()` устгана.
-- Хуудасны бүтэц HTML-д: `admin.html` → `<sokh-shell mobile="drawer" banner>`,
-  `index.html` нь шууд HTML (`<sokh-system-card>`, `<sokh-feature>`, `<nar-icon>`).
+- Хуудасны бүтэц HTML-д: `admin.html` → `<sokh-shell mobile="drawer" banner>`.
 
-## Backend холбох
+## Backend (Node + PostgreSQL · Vercel + Neon)
 
-`js/store.js`-ийн action бүр (`pay`, `newRequest`, `takeRequest`, `closeLeak`…) нь нэг газар байгаа.
-Тэдгээрийг `fetch('/api/...')` болгож, `tick()` симуляцыг WebSocket / SSE мессежээр солиход хангалттай.
+```
+api/index.js             ← Vercel Function (бүх /api/*) → server/app.js
+server/
+  app.js                 ← router, session, CSRF, алдаа
+  server.js              ← локал: статик файл + API
+  db.js                  ← pg (DATABASE_URL) / PGlite, migration
+  migrations/*.sql       ← схем (бүх хүснэгт cx_id-аар тусгаарлагдана)
+  lib/                   ← auth, core (тохиргоо, map→айл/зогсоол/гэрэл, audit, файл), billing, pay (QPay),
+                           requests, parking, notify (мэдэгдэл + SMS outbox), layout (js/layout.js-ийг уншина)
+  routes/                ← auth, complexes, billing, requests, iot, parking, finance, notify
+  seed.js · import-json.js
+scripts/build.js         ← Vercel: зөвхөн browser-ийн файлыг dist/ руу (server/ нийтэд харагдахгүй)
+vercel.json              ← rewrites, cron (өдөр бүр 09:00 УБ), sin1 бүс
+```
+
+**Аюулгүй байдал:** scrypt нууц үг (хуучин hash нэвтрэхэд автоматаар шинэчлэгдэнэ) · httpOnly
+`sokh_sid` session cookie (30 хоног; `X-Sokh-*` header-т итгэхгүй) · нэвтрэх, OTP, бүртгэлийн оролдлогын
+хязгаар · JSON/зураг биш POST-ыг хүлээж авахгүй (CSRF) · хүсэлт бүр эрх + хотхоноор шүүгдэнэ · audit log.
+
+### API
+
+| Хэсэг | Endpoint |
+|---|---|
+| **Нэвтрэлт** | `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/me` · `POST /api/auth/password` · `POST /api/auth/otp/request` · `POST /api/auth/otp/reset` |
+| **Бүртгэл** | `POST /api/accounts/register` (СӨХ: хотхон+map+админ нэг гүйлгээнд / оршин суугчийн хүсэлт) · `GET /api/accounts` · `POST /api/accounts/staff` · `POST /api/accounts/resident` · `PATCH /api/accounts/:id` |
+| **Хотхон, map** | `GET /api/complexes` · `PATCH /api/complexes/:id` · `GET/PUT /api/settings` · `GET /api/layouts` · `PUT/DELETE /api/layouts/:id` · `POST /api/files` · `GET /api/files/:id` |
+| **Айл** | `GET /api/units?q=5-34&debt=1` · `GET/PATCH /api/units/:id` · `GET /api/audit` |
+| **Төлбөр** | `POST /api/invoices/run` · `GET /api/invoices` · `GET /api/billing/summary` · `GET /api/me/bill` · `POST /api/payments` (QPay QR + банкны апп) · `GET /api/payments[/:id]` · `/api/pay/qpay/callback` · `POST /api/payments/manual` · `POST /api/reminders` |
+| **Хүсэлт** | `POST/GET /api/requests` · `GET /api/requests/:id` · `POST …/:id/take` · `…/assign` · `…/status` · `…/photos?kind=after` · `GET /api/staff` |
+| **Ус алдалт** | `GET/POST /api/leaks` · `POST /api/leaks/:id/close` · `POST /api/leaks/:id/assign` |
+| **Гэрэл** | `GET /api/lights` · `POST /api/lights/:id/report` · `POST /api/lights/:id/fix` |
+| **Зогсоол** | `GET /api/slots` · `GET /api/parking/me` · `POST /api/parking/reserve·cancel·arrive·leave` · `POST/DELETE /api/parking/queue` · `POST/DELETE /api/slots/:id/rental` · `GET /api/parking/rentals` |
+| **Санхүү** | `GET /api/finance/fund` · `GET/POST /api/finance/ledger` · `GET/POST /api/finance/obligations` · `POST …/:id/pay` · `GET/POST /api/works` · `GET /api/reports` · `POST /api/reports/:month/publish` · `GET /api/finance/months` |
+| **Мэдэгдэл** | `GET /api/notifications` · `POST /api/notifications/read` · `GET /api/sync?since=` · `GET /api/stream` (SSE) |
+| **IoT** | `GET/POST/DELETE /api/devices` · `POST /api/iot/leak·slot·light·heartbeat` · `GET /api/iot/commands` · `POST /api/iot/commands/:id/ack` (толгой: `X-Device-Id`, `X-Device-Key`) |
+| **Cron** | `GET /api/cron/daily` (`Authorization: Bearer $CRON_SECRET`): нэхэмжлэл, сануулга, SLA, зогсоол, SMS, цэвэрлэгээ |
+
+### Vercel дээр байршуулах
+
+1. Repo-г Vercel-д холбоно (Framework: **Other**; build, output-ыг `vercel.json` тохируулна).
+2. **Storage → Marketplace → Neon** (Singapore бүс) → `DATABASE_URL` автоматаар нэмэгдэнэ.
+3. Environment Variables: `.env.example`-ийг харна — `CRON_SECRET`, `PUBLIC_URL`, QPay, SMS webhook.
+4. Deploy. Схем анхны хүсэлтээр автоматаар үүснэ (эсвэл `npm run migrate`).
+5. Демо өгөгдөл хэрэгтэй бол локалаас нэг удаа: `DATABASE_URL=… npm run seed` (production-д бүү).
+
+**Frontend холболт:** server-тэй, нэвтэрсэн үед `js/remote.js` store-ыг үүсгэнэ: хуудас ачаалахад
+`GET /api/boot` (хэрэглэгчийн эрхээр шүүсэн бүх өгөгдөл, `js/store.js`-ийн төлвийн хэлбэрээр), үйлдэл бүр
+(`S.pay`, `S.newRequest`, `S.reserveSlot` …) API руу явна, 5 сек тутам `/api/sync`-ээр бусдын өөрчлөлтийг
+татна. Server-гүй үед `js/store.js` өмнөх шигээ демо симуляцаар ажиллана. Нэг browser нэг session-тэй тул
+гурван эрхийг зэрэг турших бол өөр browser / incognito цонх ашиглана.
 
 ## Responsive
 
