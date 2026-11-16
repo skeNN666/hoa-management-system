@@ -5,7 +5,7 @@
  *
  * • Статик файлуудыг (index.html, js/, css/ …) өгнө, /api/* → server/app.js
  * • DATABASE_URL байхгүй бол PGlite (server/data/pg)-д хадгална; анх хоосон бол демо өгөгдөл үүснэ
- *   (SEED_DEMO=0 бол үүсгэхгүй). Production (Vercel) нь api/index.js-ээр ажиллана.
+ *   (SEED_DEMO=0 бол үүсгэхгүй). Production (Cloudflare) нь worker/index.js-ээр ажиллана.
  */
 const http = require('http');
 const fs = require('fs');
@@ -27,7 +27,8 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 // browser-т өгөхгүй хавтас, файлууд
-const HIDDEN = /^(server|tests|api|scripts|dist|node_modules)([\\/]|$)|(^|[\\/])\.|^package(-lock)?\.json$|^vercel\.json$/;
+const HIDDEN =
+  /^(server|tests|worker|scripts|dist|node_modules)([\\/]|$)|(^|[\\/])\.|^package(-lock)?\.json$|^wrangler\.jsonc?$/;
 
 function serveStatic(req, res, url) {
   let p;

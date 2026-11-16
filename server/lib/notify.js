@@ -9,8 +9,7 @@
  */
 const db = require('../db');
 
-const isProd = () =>
-  process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+const isProd = () => process.env.NODE_ENV === 'production';
 
 function target(to, params) {
   const w = ["a.cx_id = $1", "a.status = 'active'"];

@@ -177,10 +177,10 @@ html`<sokh-ledger data="${Nar.json(list)}"></sokh-ledger>`   // объект →
   `el.use((host) => Scenes.complex(host, {...})).update({...})`, `el.reset()` устгана.
 - Хуудасны бүтэц HTML-д: `admin.html` → `<sokh-shell mobile="drawer" banner>`.
 
-## Backend (Node + PostgreSQL · Vercel + Neon)
+## Backend (Node + PostgreSQL · Cloudflare Workers + Neon)
 
 ```
-api/index.js             ← Vercel Function (бүх /api/*) → server/app.js
+worker/                  ← Cloudflare Worker (бүх /api/*) → server/app.js — доорх «Cloudflare»
 server/
   app.js                 ← router, session, CSRF, алдаа
   server.js              ← локал: статик файл + API
@@ -190,8 +190,8 @@ server/
                            requests, parking, notify (мэдэгдэл + SMS outbox), layout (js/layout.js-ийг уншина)
   routes/                ← auth, complexes, billing, requests, iot, parking, finance, notify
   seed.js · import-json.js
-scripts/build.js         ← Vercel: зөвхөн browser-ийн файлыг dist/ руу (server/ нийтэд харагдахгүй)
-vercel.json              ← rewrites, cron (өдөр бүр 09:00 УБ), sin1 бүс
+scripts/build.js         ← зөвхөн browser-ийн файлыг dist/ руу (server/ нийтэд харагдахгүй)
+wrangler.jsonc           ← Cloudflare: assets, Hyperdrive, cron (өдөр бүр 09:00 УБ)
 ```
 
 **Аюулгүй байдал:** scrypt нууц үг (хуучин hash нэвтрэхэд автоматаар шинэчлэгдэнэ) · httpOnly
@@ -216,13 +216,37 @@ vercel.json              ← rewrites, cron (өдөр бүр 09:00 УБ), sin1 �
 | **IoT** | `GET/POST/DELETE /api/devices` · `POST /api/iot/leak·slot·light·heartbeat` · `GET /api/iot/commands` · `POST /api/iot/commands/:id/ack` (толгой: `X-Device-Id`, `X-Device-Key`) |
 | **Cron** | `GET /api/cron/daily` (`Authorization: Bearer $CRON_SECRET`): нэхэмжлэл, сануулга, SLA, зогсоол, SMS, цэвэрлэгээ |
 
-### Vercel дээр байршуулах
+### Cloudflare Workers дээр байршуулах (үнэгүй багц)
 
-1. Repo-г Vercel-д холбоно (Framework: **Other**; build, output-ыг `vercel.json` тохируулна).
-2. **Storage → Marketplace → Neon** (Singapore бүс) → `DATABASE_URL` автоматаар нэмэгдэнэ.
-3. Environment Variables: `.env.example`-ийг харна — `CRON_SECRET`, `PUBLIC_URL`, QPay, SMS webhook.
-4. Deploy. Схем анхны хүсэлтээр автоматаар үүснэ (эсвэл `npm run migrate`).
-5. Демо өгөгдөл хэрэгтэй бол локалаас нэг удаа: `DATABASE_URL=… npm run seed` (production-д бүү).
+Ажиллаж буй хаяг: https://sokh-platform.sokh-nar.workers.dev
+
+Ижил код: статик файл → **Workers Static Assets**, `/api/*` → `worker/index.js` → `server/app.js`,
+DB → **Hyperdrive** → Neon Postgres, өдөр тутмын ажил → **Cron Trigger**.
+
+```
+worker/index.js          ← Worker: /api/* → server/app.js, scheduled() → /api/cron/daily
+worker/node-adapter.js   ← Fetch Request/Response ↔ Node req/res (server/ код өөрчлөгдөхгүй)
+worker/setup.js          ← хүсэлт бүрт DB pool (AsyncLocalStorage), migration-ууд
+scripts/build-worker.js  ← dist/ + worker/migrations.gen.js (deploy, dev бүрт автоматаар)
+wrangler.jsonc           ← assets, hyperdrive, cron, vars
+```
+
+1. `npx wrangler@4 login`
+2. Hyperdrive (Neon-ы **pooler-гүй** хаяг — `-pooler` хэсгийг хасна; **cache унтраана**, эс тэгвээс
+   SELECT-ийн хариу 60 сек хуучирч болно):
+   ```
+   npx wrangler@4 hyperdrive create sokh-db --caching-disabled --connection-string="postgresql://…@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+   ```
+   Гарсан `id`-г `wrangler.jsonc` → `hyperdrive[0].id`-д тавина.
+3. Нууцууд: `npx wrangler@4 secret put CRON_SECRET` (хэрэгтэй бол `QPAY_*`, `SMS_*`, `PUBLIC_URL`).
+4. `npm run cf:deploy` → `https://sokh-platform.<таны-subdomain>.workers.dev`
+   (схем анхны хүсэлтээр автоматаар үүснэ; демо өгөгдлийг production-д бүү seed хий)
+
+Локалаар Worker-ээр турших: `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgres://… npm run cf:dev`.
+
+**Үнэгүй багцын хязгаар:** 100 000 хүсэлт/өдөр (статик файл тоологдохгүй), хүсэлт бүрт 10ms CPU
+(DB-г хүлээх хугацаа тоологдохгүй). Нэвтрэх үеийн scrypt CPU их зарцуулдаг тул нэвтрэхэд алдаа (1102)
+гарвал Workers Paid ($5) руу шилжинэ.
 
 **Frontend холболт:** server-тэй, нэвтэрсэн үед `js/remote.js` store-ыг үүсгэнэ: хуудас ачаалахад
 `GET /api/boot` (хэрэглэгчийн эрхээр шүүсэн бүх өгөгдөл, `js/store.js`-ийн төлвийн хэлбэрээр), үйлдэл бүр

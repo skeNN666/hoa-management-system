@@ -4,7 +4,7 @@
  *   POST /api/notifications/read             { ids? } (ids өгөхгүй бол бүгдийг)
  *   GET  /api/sync?since=<notif id>          { ver, notifs, unread } — client 5–8 сек тутам
  *   GET  /api/stream?since=                  SSE: ~25 сек ажиллаад хаагдана, EventSource дахин холбогдоно
- *   GET  /api/cron/daily                     Vercel Cron (Authorization: Bearer CRON_SECRET):
+ *   GET  /api/cron/daily                     Cloudflare Cron Trigger (Authorization: Bearer CRON_SECRET):
  *                                            нэхэмжлэл, сануулга, SLA, зогсоол, SMS, цэвэрлэгээ
  */
 const db = require('../db');

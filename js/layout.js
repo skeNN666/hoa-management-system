@@ -26,7 +26,7 @@
  *   lights:    [{ x, z, loc }],  trees: [[x, z, pine]]
  * }
  */
-(function () {
+(function (window, localStorage) {
   const KEY = 'sokh-layouts',
     CUR = 'sokh-cx';
   const SPOT_W = 2.5, // зогсоолын өргөн
@@ -1859,4 +1859,15 @@
     svg,
     rng,
   };
-})();
+  // server (Node / Cloudflare Worker): require('js/layout.js') → Layout
+  if (typeof module === 'object' && module.exports) module.exports = window.Layout;
+})(
+  typeof window !== 'undefined' ? window : {},
+  typeof window !== 'undefined'
+    ? {
+        getItem: (k) => localStorage.getItem(k),
+        setItem: (k, v) => localStorage.setItem(k, v),
+        removeItem: (k) => localStorage.removeItem(k),
+      }
+    : { getItem: () => null, setItem() {}, removeItem() {} },
+);

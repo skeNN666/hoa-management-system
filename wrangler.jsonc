@@ -1,0 +1,37 @@
+// СӨХ Platform — Cloudflare Worker тохиргоо.  npm run cf:dev  ·  npm run cf:deploy
+// Анхны тохируулга: README.md → «Cloudflare дээр байршуулах»
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sokh-platform",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // dist/ + worker/migrations.gen.js-ийг үүсгэнэ (deploy, dev бүрт)
+  "build": { "command": "node scripts/build-worker.js" },
+
+  // Статик файл: Worker ажиллахгүй (үнэгүй, хязгааргүй). Зөвхөн /api/* Worker руу.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // Neon Postgres (Hyperdrive-ийн id: npx wrangler hyperdrive create sokh-db --connection-string="…")
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "5509df5a20d040e78e7c202d71edb9d7" }],
+
+  // Өдөр бүр 01:00 UTC = 09:00 Улаанбаатар (нэхэмжлэл, сануулга, SLA, цэвэрлэгээ)
+  "triggers": { "crons": ["0 1 * * *"] },
+
+  // Нууц биш тохиргоо. Нууцуудыг: npx wrangler secret put CRON_SECRET (QPAY_*, SMS_* г.м.)
+  "vars": {
+    "NODE_ENV": "production",
+    "SOKH_RUNTIME": "cloudflare",
+    "SECURE_COOKIES": "1"
+  },
+
+  // Worker дээр PGlite хэрэггүй — bundle-д оруулахгүй
+  "alias": { "@electric-sql/pglite": "./worker/pglite-stub.js" },
+
+  "observability": { "enabled": true }
+}

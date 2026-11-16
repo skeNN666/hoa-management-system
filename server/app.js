@@ -1,6 +1,6 @@
 /*
- * СӨХ Platform — API (Node http handler). Local (server/server.js) болон Vercel (api/index.js)
- * хоёуланд ижил ажиллана. Бүх endpoint-ийн жагсаалт: README.md → «Backend API».
+ * СӨХ Platform — API (Node http handler). Local (server/server.js) болон Cloudflare Worker
+ * (worker/index.js) хоёуланд ижил ажиллана. Бүх endpoint-ийн жагсаалт: README.md → «Backend API».
  *
  * Эрх: httpOnly session cookie (sokh_sid). Header-ийн X-Sokh-Role г.м.-д итгэхгүй.
  * CSRF: өөрчлөх хүсэлт (POST/PUT/PATCH/DELETE) нь JSON эсвэл зураг байх ёстой — өөр сайтын
@@ -30,7 +30,12 @@ class Ctx {
     this.query = Object.fromEntries(url.searchParams);
     this.cookies = parseCookies(req.headers.cookie);
     this.ip =
-      String(req.headers['x-forwarded-for'] || '')
+      // Cloudflare дээр cf-connecting-ip-г Cloudflare өөрөө тавина; бусад орчинд түүнд итгэхгүй
+      String(
+        (process.env.SOKH_RUNTIME === 'cloudflare' && req.headers['cf-connecting-ip']) ||
+          req.headers['x-forwarded-for'] ||
+          '',
+      )
         .split(',')[0]
         .trim() ||
       (req.socket && req.socket.remoteAddress) ||
@@ -80,26 +85,22 @@ function csrfOk(req) {
   return !SIMPLE.test(ct);
 }
 
+// static require (Cloudflare Worker-ийн bundler dynamic require-ийг дэмждэггүй)
 [
-  './routes/auth',
-  './routes/complexes',
-  './routes/billing',
-  './routes/requests',
-  './routes/iot',
-  './routes/parking',
-  './routes/finance',
-  './routes/notify',
-  './routes/boot',
-].forEach((m) => require(m)(on));
+  require('./routes/auth'),
+  require('./routes/complexes'),
+  require('./routes/billing'),
+  require('./routes/requests'),
+  require('./routes/iot'),
+  require('./routes/parking'),
+  require('./routes/finance'),
+  require('./routes/notify'),
+  require('./routes/boot'),
+].forEach((m) => m(on));
 
 async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
-  // Vercel rewrite: /api/:path* → /api?__p=:path*
-  let p = url.pathname;
-  if (url.searchParams.has('__p')) {
-    p = '/api/' + url.searchParams.get('__p');
-    url.searchParams.delete('__p');
-  }
+  const p = url.pathname;
   let route = null,
     params = {},
     pathHit = false;
@@ -118,14 +119,16 @@ async function handle(req, res) {
     });
     break;
   }
-  if (!route) return send(res, pathHit ? 405 : 404, { error: pathHit ? 'Method not allowed' : 'Олдсонгүй' });
+  if (!route)
+    return send(res, pathHit ? 405 : 404, { error: pathHit ? 'Method not allowed' : 'Олдсонгүй' });
   const c = new Ctx(req, res, url, params);
   try {
     if (!['GET', 'HEAD'].includes(req.method) && !route.opt.open && !csrfOk(req))
       throw new HttpError(415, 'JSON өгөгдөл илгээнэ үү');
     await db.ready();
     const out = await route.fn(c);
-    if (!res.writableEnded && !res.headersSent) send(res, 200, out === undefined ? { ok: true } : out);
+    if (!res.writableEnded && !res.headersSent)
+      send(res, 200, out === undefined ? { ok: true } : out);
   } catch (e) {
     if (e instanceof HttpError) return send(res, e.status, { error: e.message, ...e.extra });
     if (e && e.code === '23505') return send(res, 409, { error: 'Давхардсан бүртгэл байна' });

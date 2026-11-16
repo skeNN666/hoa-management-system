@@ -1,5 +1,5 @@
 /*
- * Vercel build: зөвхөн browser-т хэрэгтэй файлуудыг dist/ руу хуулна.
+ * Build: зөвхөн browser-т хэрэгтэй файлуудыг dist/ руу хуулна.
  * (server/, tests/, node_modules/ г.м. нийтэд харагдахгүй.)  node scripts/build.js
  */
 const fs = require('fs');

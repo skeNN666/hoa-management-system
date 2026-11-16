@@ -1,26 +1,10 @@
 /*
- * js/layout.js (browser-ийн map model)-ыг серверт тусгаарлагдсан vm орчинд ачаална.
+ * js/layout.js (browser-ийн map model)-ыг серверт module-аар ачаална (Node, Cloudflare Worker).
  * Сервер зөвхөн уншина: анхны map (original), шинэ map үүсгэх (generate), тоолох.
- * localStorage нь хоосон тул Layout.get(id) үргэлж кодонд байгаа анхных map-ыг буцаана.
+ * Server дээр window байхгүй тул localStorage нь хоосон → Layout.get(id) үргэлж кодонд байгаа
+ * анхных map-ыг буцаана.
  */
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
-
-const FILE = path.join(__dirname, '..', '..', 'js', 'layout.js');
-const mem = {};
-const ctx = {
-  window: {},
-  localStorage: {
-    getItem: (k) => (k in mem ? mem[k] : null),
-    setItem: () => {},
-    removeItem: () => {},
-  },
-  console,
-};
-vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(FILE, 'utf8'), ctx, { filename: FILE });
-const Layout = ctx.window.Layout;
+const Layout = require('../../js/layout.js');
 
 /** vm-ийн объектыг энгийн JSON болгоно */
 const plain = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));

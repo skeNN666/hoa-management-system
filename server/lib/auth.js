@@ -5,11 +5,10 @@
  */
 const crypto = require('crypto');
 const { promisify } = require('util');
-const path = require('path');
 const db = require('../db');
 const { HttpError, rid, sha256, safeEq, clean, digits } = require('./util');
 const { addCookie } = require('./http');
-const Legacy = require(path.join(__dirname, '..', '..', 'js', 'accounts.js'));
+const Legacy = require('../../js/accounts.js');
 
 const scrypt = promisify(crypto.scrypt);
 const COOKIE = 'sokh_sid';
@@ -47,7 +46,7 @@ const loginKey = (role, login) =>
 
 /* ---------- session ---------- */
 const isSecure = (req) =>
-  !!process.env.VERCEL ||
+  process.env.SECURE_COOKIES === '1' ||
   String(req.headers['x-forwarded-proto'] || '').startsWith('https') ||
   !!(req.socket && req.socket.encrypted);
 
