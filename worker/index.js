@@ -4,12 +4,17 @@
  *   • /api/*               → энд → server/app.js-ийн handle() (локал server-тэй яг ижил код)
  *   • DB                   → Hyperdrive (env.HYPERDRIVE) → Neon Postgres; хүсэлт бүрт шинэ pool
  *   • Cron Trigger         → /api/cron/daily (өдөр бүр 09:00 УБ)
+ *   • /api/edge/*          → worker/edge/ (D1 · R2 · KV · Durable Object жишээ, edge.html)
  */
 import './setup.js';
 import { scope } from './setup.js';
 import { makeReq, makeRes } from './node-adapter.js';
 import app from '../server/app.js';
 import db from '../server/db.js';
+import { handleEdge } from './edge/index.js';
+
+// Durable Object класс main модулиас export хийгдсэн байх ёстой (wrangler.jsonc → durable_objects)
+export { ChatRoom } from './edge/index.js';
 
 async function api(request, env, ctx) {
   if (!env.HYPERDRIVE) return Response.json({ error: 'HYPERDRIVE binding алга' }, { status: 500 });
@@ -35,6 +40,8 @@ async function api(request, env, ctx) {
 export default {
   fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
+    if (pathname === '/api/edge' || pathname.startsWith('/api/edge/'))
+      return handleEdge(request, env, ctx);
     if (pathname === '/api' || pathname.startsWith('/api/')) return api(request, env, ctx);
     // assets-д байхгүй (run_worker_first-ээс гадуур ирсэн) зам
     return env.ASSETS.fetch(request);

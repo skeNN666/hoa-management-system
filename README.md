@@ -225,7 +225,8 @@ worker/index.js          ← Worker: /api/* → server/app.js, scheduled() → /
 worker/node-adapter.js   ← Fetch Request/Response ↔ Node req/res (server/ код өөрчлөгдөхгүй)
 worker/setup.js          ← хүсэлт бүрт DB pool (AsyncLocalStorage), migration-ууд
 scripts/build-worker.js  ← dist/ + worker/migrations.gen.js (deploy, dev бүрт автоматаар)
-wrangler.jsonc           ← assets, hyperdrive, cron, vars
+wrangler.jsonc           ← assets, hyperdrive, cron, vars, D1/KV/R2/DO (самбар)
+worker/edge/             ← Хотхоны самбар: D1 · R2 · KV · Durable Object (доор)
 ```
 
 1. `npx wrangler@4 login`
@@ -250,6 +251,33 @@ wrangler.jsonc           ← assets, hyperdrive, cron, vars
 (`S.pay`, `S.newRequest`, `S.reserveSlot` …) API руу явна, 5 сек тутам `/api/sync`-ээр бусдын өөрчлөлтийг
 татна. Server-гүй үед `js/store.js` өмнөх шигээ демо симуляцаар ажиллана. Нэг browser нэг session-тэй тул
 гурван эрхийг зэрэг турших бол өөр browser / incognito цонх ашиглана.
+
+### Хотхоны самбар — Cloudflare edge лаб (`edge.html`)
+
+Cloudflare-ийн 5 үйлчилгээг нэг хуудсанд ашигласан жишээ. Postgres-оос тусдаа (`/api/edge/*`),
+нэвтрэлт шаардахгүй. Browser-оор: `http://127.0.0.1:8787/edge` (локал) · `…workers.dev/edge`.
+
+| Үйлчилгээ | Юунд | Код |
+|---|---|---|
+| **Worker** | API endpoint (`/api/edge/*`), алдаа, `X-Edge-Time`/`X-Edge-Colo` толгой | `worker/edge/index.js` |
+| **D1** (`env.DB`) | Зарлалын SQL хүснэгт — INSERT/SELECT/UPDATE/DELETE … RETURNING | `worker/edge/migrations/*.sql` |
+| **R2** (`env.FILES`) | Хэрэглэгчийн зураг (≤5MB, JPG/PNG/WEBP/GIF), ETag/304 | `POST /upload`, `GET /files/<key>` |
+| **KV** (`env.KV`) | Зарлалын жагсаалтын кэш 60 сек (`X-Cache: HIT/MISS`) + баннер | `GET /posts`, `GET/PUT /banner` |
+| **Durable Object** (`env.CHAT`) | WebSocket чат (өрөө бүр нэг объект, SQLite-д 50 мессеж) + самбарын realtime мэдэгдэл | `worker/edge/chat-room.js` |
+
+Урсгал: зураг → R2 → түлхүүр → зарлал D1-д → KV кэш устгана → DO «board» өрөөгөөр бүх нээлттэй
+browser-т шууд түлхэнэ. (KV нь эцсийн дүндээ тогтвортой — өөр дата төвд 60 сек хуучин байж болох тул
+шинэ зарлалыг DO-оор түлхдэг.)
+
+```
+npm run d1:migrate:local                 # локал D1 хүснэгт (нэг удаа)
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgres://localhost/sokh npm run cf:dev
+#   → http://127.0.0.1:8787/edge   (D1, R2, KV, DO бүгд .wrangler/state-д локалаар ажиллана)
+npm run d1:migrate                       # Cloudflare дээрх D1 (sokh-edge, APAC)
+npx wrangler@4 r2 bucket create sokh-files   # R2-г Dashboard-аас идэвхжүүлсний дараа (карт шаардана, 10GB үнэгүй)
+npx wrangler@4 secret put EDGE_ADMIN_KEY     # заавал биш: баннер/устгалд X-Edge-Key шаардана
+npm run cf:deploy
+```
 
 ## Responsive
 

@@ -20,6 +20,25 @@
   // Neon Postgres (Hyperdrive-ийн id: npx wrangler hyperdrive create sokh-db --connection-string="…")
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "5509df5a20d040e78e7c202d71edb9d7" }],
 
+  // ---- Хотхоны самбар (edge.html · worker/edge/) ------------------------------------------
+  // D1: SQLite өгөгдлийн сан.  migration: npm run d1:migrate:local / npm run d1:migrate
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sokh-edge",
+      "database_id": "ca876143-8095-4563-bf29-8e0e2ed9f1d8",
+      "migrations_dir": "worker/edge/migrations"
+    }
+  ],
+  // KV: түлхүүр → утга, дэлхий даяар хурдан уншина (кэш, тохиргоо)
+  "kv_namespaces": [{ "binding": "KV", "id": "73d4b5454eae4a78b984ccafc4db3139" }],
+  // R2: файл/зургийн сан (S3-тэй адил). Production-д: Dashboard → R2 идэвхжүүлээд
+  //     npx wrangler@4 r2 bucket create sokh-files
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "sokh-files" }],
+  // Durable Object: realtime чатын өрөө (WebSocket). Үнэгүй багцад SQLite-тэй DO л болно.
+  "durable_objects": { "bindings": [{ "name": "CHAT", "class_name": "ChatRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatRoom"] }],
+
   // Өдөр бүр 01:00 UTC = 09:00 Улаанбаатар (нэхэмжлэл, сануулга, SLA, цэвэрлэгээ)
   "triggers": { "crons": ["0 1 * * *"] },
 

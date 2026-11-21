@@ -11,7 +11,9 @@
     "format": "npx prettier@3.3.3 --write \"css/**/*.css\" \"js/**/*.js\" \"*.html\" \"server/**/*.js\" \"scripts/*.js\" \"worker/*.js\" \"tests/*.js\"",
     "build:cf": "node scripts/build-worker.js",
     "cf:dev": "npx wrangler@4 dev",
-    "cf:deploy": "npx wrangler@4 deploy"
+    "cf:deploy": "npx wrangler@4 deploy",
+    "d1:migrate:local": "npx wrangler@4 d1 migrations apply sokh-edge --local",
+    "d1:migrate": "npx wrangler@4 d1 migrations apply sokh-edge --remote"
   },
   "dependencies": {
     "pg": "^8.23.1"

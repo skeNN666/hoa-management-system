@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="mn">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Хотхоны самбар · СӨХ Platform</title>
+    <meta name="theme-color" content="#0A72B8" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%230A72B8%22/%3E%3Cpath d=%22M9 25V9h9v16M18 14h5v11M7 25h18%22 stroke=%22white%22 stroke-width=%222.4%22 fill=%22none%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="css/nar.css" />
+    <link rel="stylesheet" href="css/edge.css" />
+    <script>
+      try {
+        var s = JSON.parse(localStorage.getItem('sokh-v1') || 'null');
+        if (
+          (s && s.theme === 'dark') ||
+          ((!s || !s.theme) && matchMedia('(prefers-color-scheme: dark)').matches)
+        )
+          document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <noscript>Энэ хуудас ажиллахын тулд JavaScript шаардлагатай.</noscript>
+    <header class="ed-top">
+      <div class="ed-wrap ed-top-in">
+        <a href="index.html" class="ed-logo" aria-label="Нүүр">
+          <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="#0A72B8" />
+            <path
+              d="M9 25V9h9v16M18 14h5v11M7 25h18"
+              stroke="#fff"
+              stroke-width="2.4"
+              fill="none"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </a>
+        <div class="grow">
+          <h1 class="ed-title">Хотхоны самбар</h1>
+          <p class="ed-sub">Cloudflare edge лаб: Worker · D1 · R2 · KV · Durable Object</p>
+        </div>
+        <button class="btn s" id="theme" type="button" aria-label="Өнгө солих">◐</button>
+      </div>
+    </header>
+
+    <main class="ed-wrap">
+      <section class="ed-services" id="services" aria-label="Үйлчилгээний төлөв"></section>
+      <div id="banner" class="ed-banner" hidden></div>
+
+      <div class="ed-grid">
+        <div class="ed-col">
+          <form class="card ed-card" id="post-form" autocomplete="off">
+            <div class="ed-card-h">
+              <h2 class="h2">Шинэ зарлал</h2>
+              <span class="ed-tag">D1 + R2</span>
+            </div>
+            <div class="ed-row2">
+              <label class="field"
+                >Нэр
+                <input
+                  class="inp"
+                  name="author"
+                  maxlength="40"
+                  required
+                  placeholder="5-34 тоот Болд"
+              /></label>
+              <label class="field"
+                >Гарчиг
+                <input
+                  class="inp"
+                  name="title"
+                  maxlength="120"
+                  required
+                  placeholder="Лифт засварт орно"
+              /></label>
+            </div>
+            <label class="field"
+              >Дэлгэрэнгүй
+              <textarea
+                class="inp"
+                name="body"
+                maxlength="2000"
+                placeholder="Мягмар гарагт 10:00–14:00…"
+              ></textarea>
+            </label>
+            <div class="ed-file">
+              <label class="btn s" for="image">Зураг сонгох</label>
+              <input
+                type="file"
+                id="image"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+              />
+              <span class="faint t12" id="image-info">Заавал биш · ≤5MB · R2-д хадгалагдана</span>
+              <img id="preview" class="ed-preview" alt="" hidden />
+              <button type="button" class="txt-btn t12" id="image-clear" hidden>Хасах</button>
+            </div>
+            <div class="ed-actions">
+              <span class="t12 muted" id="post-status"></span>
+              <button class="btn p" type="submit" id="post-btn">Нийтлэх</button>
+            </div>
+          </form>
+
+          <section class="card ed-card">
+            <div class="ed-card-h">
+              <h2 class="h2">Зарлалууд</h2>
+              <span class="ed-tag" id="cache-tag">KV кэш</span>
+              <button class="btn s ml-auto" id="reload" type="button">Дахин татах</button>
+            </div>
+            <p class="t12 muted ed-hint">
+              Эхний уншилт D1-ээс (<b>MISS</b>), дараагийнх нь 60 сек KV-ээс (<b>HIT</b>). Шинэ
+              зарлал DO-оор бүх нээлттэй цонхонд шууд гарна — өөр цонхонд нээгээд үзээрэй.
+            </p>
+            <div id="posts" class="ed-posts"></div>
+          </section>
+        </div>
+
+        <div class="ed-col">
+          <section class="card ed-card ed-chat">
+            <div class="ed-card-h">
+              <h2 class="h2">Чат</h2>
+              <span class="ed-tag">Durable Object</span>
+              <span class="ml-auto t12 muted" id="chat-state">холбогдоогүй</span>
+            </div>
+            <div class="ed-row2">
+              <label class="field"
+                >Таны нэр <input class="inp" id="chat-name" maxlength="24" placeholder="Зочин"
+              /></label>
+              <label class="field"
+                >Өрөө
+                <input
+                  class="inp"
+                  id="chat-room"
+                  maxlength="32"
+                  value="lobby"
+                  pattern="[a-z0-9\-]{1,32}"
+              /></label>
+            </div>
+            <div class="ed-online t12 muted" id="chat-online"></div>
+            <div class="ed-msgs" id="msgs" aria-live="polite"></div>
+            <div class="ed-typing t12 faint" id="typing"></div>
+            <form class="ed-send" id="chat-form" autocomplete="off">
+              <input class="inp grow" id="chat-text" maxlength="500" placeholder="Мессеж бичих…" />
+              <button class="btn p" type="submit">Илгээх</button>
+            </form>
+          </section>
+
+          <form class="card ed-card" id="banner-form">
+            <div class="ed-card-h">
+              <h2 class="h2">Баннер</h2>
+              <span class="ed-tag">KV</span>
+            </div>
+            <p class="t12 muted ed-hint">
+              Бүх хуудасны дээд талд гарах мэдэгдэл. DB биш — KV-д нэг түлхүүрээр хадгална.
+            </p>
+            <label class="field"
+              >Текст
+              <input
+                class="inp"
+                name="text"
+                maxlength="200"
+                placeholder="Халуун ус 12-р сарын 1-нд тасарна"
+            /></label>
+            <div class="ed-actions">
+              <select class="inp ed-sel" name="tone" aria-label="Өнгө">
+                <option value="info">Мэдээлэл</option>
+                <option value="ok">Сайн</option>
+                <option value="warn">Анхаар</option>
+                <option value="bad">Яаралтай</option>
+              </select>
+              <input
+                class="inp ed-key"
+                name="key"
+                type="password"
+                placeholder="X-Edge-Key (заавал биш)"
+              />
+              <button class="btn p" type="submit">Хадгалах</button>
+            </div>
+          </form>
+
+          <section class="card ed-card">
+            <div class="ed-card-h">
+              <h2 class="h2">API лог</h2>
+              <span class="ed-tag">Worker</span>
+              <button class="btn s ml-auto" id="log-clear" type="button">Цэвэрлэх</button>
+            </div>
+            <ol class="ed-log" id="log"></ol>
+          </section>
+        </div>
+      </div>
+    </main>
+    <script src="js/edge.js"></script>
+  </body>
+</html>
