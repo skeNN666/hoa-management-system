@@ -12,7 +12,8 @@
 (function () {
   if (!window.Api || !Api.remote()) return;
   const PAGES = { admin: 'admin.html', staff: 'staff.html', resident: 'resident.html' };
-  const page = location.pathname.split('/').pop();
+  // Cloudflare /resident.html-г /resident руу шилжүүлдэг тул .html-гүй замыг ч таньна
+  const page = (location.pathname.split('/').pop() || 'index').replace(/\.html$/, '') + '.html';
   if (!Object.values(PAGES).includes(page)) return;
 
   /* ---------- эхний өгөгдөл (синхрон: хуудсууд D.ME-г шууд уншдаг) ---------- */
