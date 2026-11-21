@@ -8,6 +8,7 @@
  *   flush({ ids })            — outbox-ыг илгээнэ (SMS_WEBHOOK_URL / PUSH_WEBHOOK_URL)
  */
 const db = require('../db');
+const E = require('./edge');
 
 const isProd = () => process.env.NODE_ENV === 'production';
 
@@ -31,6 +32,7 @@ function target(to, params) {
 
 /** → мэдэгдэл хүлээн авсан хэрэглэгчийн тоо */
 async function notify(q, cx, to, n, opt = {}) {
+  E.changed(cx); // Cloudflare: LiveHub (DO) → хүлээн авагчийн browser шууд шинэчлэгдэнэ
   const params = [cx];
   const where = target(to, params);
   const base = params.length;

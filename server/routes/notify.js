@@ -113,10 +113,12 @@ module.exports = (on) => {
       }
     }
     const sms = await flush({ limit: 500 });
+    // Cloudflare: Postgres-д үлдсэн хуучин зургуудыг R2 руу (өдөрт 200 хүртэл)
+    const files = await C.moveFilesToR2(db.query, 200).catch((e) => ({ error: String(e.message || e) }));
     await db.query('delete from sessions where expires_at < now()');
     await db.query('delete from rate_limits where reset_at < now()');
     await db.query("delete from otps where expires_at < now() - interval '1 day'");
     await db.query("delete from notifications where not unread and created_at < now() - interval '180 days'");
-    return { ok: true, sms, complexes: out };
+    return { ok: true, sms, files, complexes: out };
   });
 };

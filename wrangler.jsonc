@@ -30,14 +30,23 @@
       "migrations_dir": "worker/edge/migrations"
     }
   ],
-  // KV: түлхүүр → утга, дэлхий даяар хурдан уншина (кэш, тохиргоо)
+  // KV: түлхүүр → утга, дэлхий даяар хурдан уншина (самбарын кэш, баннер, /api/layouts кэш)
   "kv_namespaces": [{ "binding": "KV", "id": "73d4b5454eae4a78b984ccafc4db3139" }],
-  // R2: файл/зургийн сан (S3-тэй адил). Production-д: Dashboard → R2 идэвхжүүлээд
-  //     npx wrangler@4 r2 bucket create sokh-files
+  // R2: файл/зургийн сан (S3-тэй адил) — самбарын болон үндсэн системийн (хүсэлт, map) зураг
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "sokh-files" }],
   // Durable Object: realtime чатын өрөө (WebSocket). Үнэгүй багцад SQLite-тэй DO л болно.
-  "durable_objects": { "bindings": [{ "name": "CHAT", "class_name": "ChatRoom" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatRoom"] }],
+  // LIVE: үндсэн системийн realtime — хотхон бүрт нэг LiveHub (worker/live-hub.js)
+  "durable_objects": {
+    "bindings": [
+      { "name": "CHAT", "class_name": "ChatRoom" },
+      { "name": "LIVE", "class_name": "LiveHub" }
+    ]
+  },
+  // DO-ийн migration: шинэ класс нэмэх бүрт шинэ tag (хуучныг нь бүү өөрчил)
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ChatRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["LiveHub"] }
+  ],
 
   // Өдөр бүр 01:00 UTC = 09:00 Улаанбаатар (нэхэмжлэл, сануулга, SLA, цэвэрлэгээ)
   "triggers": { "crons": ["0 1 * * *"] },

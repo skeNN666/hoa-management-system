@@ -4,6 +4,7 @@
  */
 const { derive, original } = require('./layout');
 const { next, pad, local, rid, bad, notFound } = require('./util');
+const E = require('./edge');
 
 const DEFAULTS = {
   invoice: {
@@ -44,7 +45,10 @@ async function getComplex(q, id, lock) {
 const layoutOf = (cx) => cx.layout || original(cx.id);
 
 /** Өөрчлөлт бүрийн дараа: client-ууд шинэчлэгдэх дохио */
-const touch = (q, cx) => q('update complexes set ver = ver + 1 where id = $1', [cx]);
+const touch = (q, cx) => {
+  E.changed(cx); // Cloudflare: хариуны дараа LiveHub (DO) → browser-ууд шууд шинэчлэгдэнэ
+  return q('update complexes set ver = ver + 1 where id = $1', [cx]);
+};
 
 /**
  * map-аас айл, зогсоол, гэрлийг DB-тэй тааруулна. Map-аас хасагдсан айл, зогсоолыг устгахгүй
@@ -148,18 +152,59 @@ function sniff(buf) {
     return 'image/webp';
   return null;
 }
-/** Зураг хадгална (PNG / JPEG / WebP, ≤ 4MB) → { id, url } */
+const r2Key = (cx, id) => 'files/' + cx + '/' + id;
+/**
+ * Зураг хадгална (PNG / JPEG / WebP, ≤ 4MB) → { id, url }
+ * Cloudflare дээр (R2 binding байвал) зураг R2-д, Postgres-д зөвхөн мета (r2_key).
+ * Локал Node дээр хуучнаараа Postgres-ийн bytea баганад.
+ */
 async function saveFile(q, cx, buf, by, isPublic) {
   if (!buf || !buf.length) throw bad('Зураг хоосон байна');
   if (buf.length > MAX_FILE) throw bad('Зураг 4MB-аас бага байна');
   const mime = sniff(buf);
   if (!mime) throw bad('Зөвхөн PNG, JPEG, WebP зураг');
   const id = rid(16);
+  const R2 = E.r2();
+  let key = null;
+  if (R2) {
+    key = r2Key(cx, id);
+    await R2.put(key, buf, { httpMetadata: { contentType: mime }, customMetadata: { cx, by: by || '' } });
+  }
   await q(
-    'insert into files (id, cx_id, mime, size, data, public, created_by) values ($1, $2, $3, $4, $5, $6, $7)',
-    [id, cx, mime, buf.length, buf, !!isPublic, by || ''],
+    'insert into files (id, cx_id, mime, size, data, r2_key, public, created_by) values ($1, $2, $3, $4, $5, $6, $7, $8)',
+    [id, cx, mime, buf.length, key ? null : buf, key, !!isPublic, by || ''],
   );
   return { id, url: 'api/files/' + id, mime, size: buf.length };
+}
+/** Файлын агуулга (Buffer) — R2 эсвэл Postgres-оос */
+async function fileBody(f) {
+  if (!f.r2_key) return Buffer.from(f.data);
+  const R2 = E.r2();
+  if (!R2) throw notFound('Файл R2-д байна (R2 binding алга)');
+  const obj = await R2.get(f.r2_key);
+  if (!obj) throw notFound('Файл олдсонгүй');
+  return Buffer.from(await obj.arrayBuffer());
+}
+/** Cron: Postgres-д (bytea) байгаа хуучин файлуудыг R2 руу зөөнө (нэг удаад limit ширхэг) */
+async function moveFilesToR2(q, limit = 50) {
+  const R2 = E.r2();
+  if (!R2) return { moved: 0, left: null };
+  const { rows } = await q(
+    'select id, cx_id, mime, data, created_by from files where r2_key is null order by created_at limit $1',
+    [limit],
+  );
+  let moved = 0;
+  for (const f of rows) {
+    const key = r2Key(f.cx_id, f.id);
+    await R2.put(key, Buffer.from(f.data), {
+      httpMetadata: { contentType: f.mime },
+      customMetadata: { cx: f.cx_id, by: f.created_by || '' },
+    });
+    await q('update files set r2_key = $2, data = null where id = $1', [f.id, key]);
+    moved++;
+  }
+  const left = (await q('select count(*)::int as n from files where r2_key is null')).rows[0].n;
+  return { moved, left };
 }
 
 const unitLabel = (b, n) => b + '-р байр ' + n + ' тоот';
@@ -177,6 +222,8 @@ module.exports = {
   pickStaff,
   logWork,
   saveFile,
+  fileBody,
+  moveFilesToR2,
   MAX_FILE,
   unitLabel,
   pad,

@@ -16,6 +16,7 @@
 const db = require('../db');
 const C = require('../lib/core');
 const Y = require('../lib/layout');
+const E = require('../lib/edge');
 const { bad, forbid, notFound, clean, digits, int, month, isMonth } = require('../lib/util');
 
 /** Айлуудыг өр, төлөвтэй нь: st 0 төлсөн · 1 өмнөх өртэй · 2 энэ сарын төлбөр төлөөгүй */
@@ -126,10 +127,13 @@ module.exports = (on) => {
   });
 
   /* ---------- map ---------- */
-  on('GET', '/api/layouts', async () => {
-    const { rows } = await db.query('select layout from complexes where layout is not null order by created_at');
-    return rows.map((r) => r.layout);
-  });
+  // Хуудас бүр ачаалахдаа татдаг, ховор өөрчлөгддөг → Cloudflare KV-д 5 мин кэшлэнэ
+  on('GET', '/api/layouts', async () =>
+    E.cached(E.LAYOUTS_KEY, 300, async () => {
+      const { rows } = await db.query('select layout from complexes where layout is not null order by created_at');
+      return rows.map((r) => r.layout);
+    }),
+  );
   on('PUT', '/api/layouts/:id', async (c) => {
     const me = await c.need();
     if (me.role !== 'admin') throw forbid('Map засах эрх зөвхөн админд байна');
@@ -137,7 +141,7 @@ module.exports = (on) => {
     const L = await c.json(6 * 1024 * 1024);
     const err = Y.validate(L, c.params.id);
     if (err) throw bad(err);
-    return db.tx(async (q) => {
+    const r = await db.tx(async (q) => {
       const cx = await C.getComplex(q, me.cx_id, true);
       await q('update complexes set layout = $2::jsonb where id = $1', [cx.id, JSON.stringify(L)]);
       const n = await C.syncLayout(q, cx.id, L, C.settingsOf(cx).invoice.fee);
@@ -145,6 +149,8 @@ module.exports = (on) => {
       await C.touch(q, cx.id);
       return { ok: true, msg: 'Хадгаллаа', ...n };
     });
+    await E.uncache(E.LAYOUTS_KEY); // гүйлгээ амжилттай болсны ДАРАА кэш устгана
+    return r;
   });
   on('DELETE', '/api/layouts/:id', async (c) => {
     const me = await c.need();
@@ -152,7 +158,7 @@ module.exports = (on) => {
     if (me.cx_id !== c.params.id) throw forbid('Зөвхөн өөрийн хотхоны map-ыг өөрчилнө');
     const L = Y.original(me.cx_id);
     if (!L) throw bad('Энэ хотхонд анхны map байхгүй — map-аа засаж хадгална уу');
-    return db.tx(async (q) => {
+    const r = await db.tx(async (q) => {
       const cx = await C.getComplex(q, me.cx_id, true);
       await q('update complexes set layout = null where id = $1', [cx.id]);
       await C.syncLayout(q, cx.id, L, C.settingsOf(cx).invoice.fee);
@@ -160,6 +166,8 @@ module.exports = (on) => {
       await C.touch(q, cx.id);
       return { ok: true, msg: 'Анхны map руу буцлаа' };
     });
+    await E.uncache(E.LAYOUTS_KEY);
+    return r;
   });
 
   /* ---------- файл ---------- */
@@ -171,20 +179,25 @@ module.exports = (on) => {
     return C.saveFile(db.query, me.cx_id, buf, me.login, pub);
   });
   on('GET', '/api/files/:id', async (c) => {
-    const { rows } = await db.query('select * from files where id = $1', [c.params.id]);
+    // data-г (bytea) зөвхөн R2-д шилжээгүй файлд л уншина
+    const { rows } = await db.query(
+      'select id, cx_id, mime, size, public, r2_key, case when r2_key is null then data end as data from files where id = $1',
+      [c.params.id],
+    );
     const f = rows[0];
     if (!f) throw notFound();
     if (!f.public) {
       const me = await c.need();
       if (me.cx_id !== f.cx_id) throw notFound();
     }
+    const body = await C.fileBody(f);
     c.res.writeHead(200, {
       'Content-Type': f.mime,
       'Content-Length': f.size,
       'Cache-Control': (f.public ? 'public' : 'private') + ', max-age=31536000, immutable',
       'X-Content-Type-Options': 'nosniff',
     });
-    c.res.end(Buffer.from(f.data));
+    c.res.end(body);
   });
 
   /* ---------- айл, оршин суугч ---------- */

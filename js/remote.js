@@ -5,7 +5,8 @@
  * • Хуудас ачаалахад GET /api/boot — нэвтэрсэн хэрэглэгчийн өгөгдлийг store.js-ийн төлвийн
  *   хэлбэрээр (reqs, slots, leaks, notifs …) авна; D.ME, D.ME_STAFF, D.CUR_MONTH-ыг бодитоор солино.
  * • Үйлдэл бүр (S.pay, S.newRequest, S.reserveSlot …) API руу явж, дараа нь boot-ыг дахин татна.
- * • 5 сек тутам /api/sync — бусад хэрэглэгчийн өөрчлөлт (ver) гарвал шинэчилнэ.
+ * • /api/live (WebSocket → Cloudflare Durable Object): хотхонд өөрчлөлт гармагц шууд /api/sync.
+ *   Холболт байхгүй үед (локал Node server г.м.) 5 сек тутам /api/sync — өмнөх шигээ.
  * • Симуляц (tick) байхгүй; зөвхөн захиалгын тоолуур секунд тутам шинэчлэгдэнэ.
  */
 (function () {
@@ -378,10 +379,40 @@
   window.S = S;
 
   setInterval(() => S.tick(), 1000);
-  // бусдын өөрчлөлт: 5 сек тутам ver шалгана (таб нуугдсан үед 30 сек)
-  let lastPoll = 0;
+  // бусдын өөрчлөлт: WebSocket (DO) дохио ирвэл шууд, эс бөгөөс 5 сек тутам ver шалгана.
+  // Live холбогдсон үед polling нь зөвхөн нөөц (30 сек; таб нуугдсан үед 60 сек).
+  let lastPoll = 0,
+    live = false;
+  (function connect(wait) {
+    if (!window.WebSocket) return;
+    let ws,
+      ping = 0;
+    try {
+      ws = new WebSocket(location.href.replace(/^http/, 'ws').replace(/[^/]*$/, '') + 'api/live');
+    } catch (e) {
+      return;
+    }
+    ws.onopen = () => {
+      live = true;
+      wait = 1000;
+      lastPoll = 0; // холбогдох хооронд алдсан өөрчлөлтийг нөхнө
+      ping = setInterval(() => ws.readyState === 1 && ws.send('ping'), 30000);
+    };
+    ws.onmessage = (e) => {
+      if (e.data === 'pong') return;
+      try {
+        if (JSON.parse(e.data).type === 'sync') lastPoll = 0; // дараагийн секундэд /api/sync
+      } catch (err) {}
+    };
+    ws.onclose = () => {
+      live = false;
+      clearInterval(ping);
+      // server WebSocket дэмжихгүй (локал Node) эсвэл тасарсан → дахин оролдоно (≤ 60 сек)
+      setTimeout(() => connect(Math.min(wait * 2, 60000)), wait);
+    };
+  })(2000);
   setInterval(() => {
-    const gap = document.hidden ? 30000 : 5000;
+    const gap = live ? (document.hidden ? 60000 : 30000) : document.hidden ? 30000 : 5000;
     if (Date.now() - lastPoll < gap || loading) return;
     lastPoll = Date.now();
     const top = ((st.notifs[B.role] || [])[0] || {}).id || 0;

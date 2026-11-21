@@ -7,7 +7,7 @@
     "build": "node scripts/build.js",
     "seed": "node server/seed.js",
     "migrate": "node -e \"require('./server/db').ready().then(()=>require('./server/db').close())\"",
-    "test": "node tests/layout.test.js && node tests/accounts.test.js && node tests/server.test.js",
+    "test": "node tests/layout.test.js && node tests/accounts.test.js && node tests/server.test.js && node tests/edge.test.js",
     "format": "npx prettier@3.3.3 --write \"css/**/*.css\" \"js/**/*.js\" \"*.html\" \"server/**/*.js\" \"scripts/*.js\" \"worker/*.js\" \"tests/*.js\"",
     "build:cf": "node scripts/build-worker.js",
     "cf:dev": "npx wrangler@4 dev",

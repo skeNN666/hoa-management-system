@@ -242,6 +242,16 @@ worker/edge/             ← Хотхоны самбар: D1 · R2 · KV · Dura
 
 Локалаар Worker-ээр турших: `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgres://… npm run cf:dev`.
 
+**Үндсэн системд Cloudflare-ийн үйлчилгээ** (`server/lib/edge.js`; локал Node дээр binding байхгүй тул хуучнаараа):
+
+| | Юу хийдэг | Хаана |
+|---|---|---|
+| **R2** `FILES` | Хүсэлтийн болон map-ын зураг `files/<хотхон>/<id>` түлхүүрээр R2-д; Postgres-ийн `files`-д зөвхөн мета (`r2_key`). Хуучин bytea зургуудыг өдөр бүрийн cron 200-аар R2 руу зөөнө | `core.saveFile/fileBody/moveFilesToR2`, migration `002_files_r2.sql` |
+| **KV** `KV` | `GET /api/layouts` (хуудас бүр ачаалахдаа татдаг map) 5 мин кэш; map хадгалах/буцаах, СӨХ бүртгэх үед устгана | `routes/complexes.js`, `routes/auth.js` |
+| **DO** `LIVE` | `GET /api/live` WebSocket: хотхон бүрт нэг `LiveHub`. `touch()`/`notify()` хотхоныг тэмдэглэж, хариуны дараа Worker бүх browser руу `{type:'sync'}` дохио явуулна → browser шууд `/api/sync`. Холболттой үед polling 5с → 30с | `worker/live-hub.js`, `worker/index.js`, `js/remote.js` |
+
+Тест: `node tests/edge.test.js` (PGlite + санах ойн R2/KV).
+
 **Үнэгүй багцын хязгаар:** 100 000 хүсэлт/өдөр (статик файл тоологдохгүй), хүсэлт бүрт 10ms CPU
 (DB-г хүлээх хугацаа тоологдохгүй). Нэвтрэх үеийн scrypt CPU их зарцуулдаг тул нэвтрэхэд алдаа (1102)
 гарвал Workers Paid ($5) руу шилжинэ.

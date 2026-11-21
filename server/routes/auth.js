@@ -18,6 +18,7 @@ const db = require('../db');
 const A = require('../lib/auth');
 const C = require('../lib/core');
 const Y = require('../lib/layout');
+const E = require('../lib/edge');
 const { notify, sms, flush } = require('../lib/notify');
 const U = require('../lib/util');
 const { bad, notFound, clean, digits, int } = U;
@@ -247,6 +248,7 @@ module.exports = (on) => {
       await C.audit(q, { me: rows[0], ip: c.ip }, 'complex.create', 'complex', id, { name: cxName });
       return rows[0];
     });
+    await E.uncache(E.LAYOUTS_KEY); // шинэ хотхоны map → KV кэш хуучирсан
     await A.createSession(c, acc);
     return { ok: true, msg: 'СӨХ бүртгэгдлээ', acc: A.pub(acc), layout: L };
   }
